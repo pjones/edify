@@ -1,0 +1,15 @@
+# Comment 1
+
+file1
+
+file2 # Another comment
+file3
+
+# Multiple
+# Comment
+# Lines
+
+file4
+  file5/a/b.md
+
+# Trailing comment
