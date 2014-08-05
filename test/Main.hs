@@ -19,9 +19,11 @@ import Test.Tasty
 --------------------------------------------------------------------------------
 -- Project imports.
 import qualified ManifestTest
+import qualified TimeCodeTest
 
 --------------------------------------------------------------------------------
 main :: IO ()
 main = defaultMain $ testGroup "Tests"
   [ ManifestTest.tests
+  , TimeCodeTest.tests
   ]

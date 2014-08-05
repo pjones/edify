@@ -37,6 +37,7 @@ library
     Text.Edify.Filter
     Text.Edify.Filter.Exec
     Text.Edify.Filter.Insert
+    Text.Edify.Time.TimeCode
     Text.Edify.Util.Indent
     Text.Edify.Util.Narrow
 
