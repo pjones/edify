@@ -39,7 +39,7 @@ options = Options <$> (optional $ argument str (metavar "FILE"))
 
 --------------------------------------------------------------------------------
 dispatch :: Options -> IO ()
-dispatch (Options file) = print . headers =<< content
+dispatch (Options file) = simpleOutline 0 . headers =<< content
   where
     content :: IO String
     content = case file of
@@ -47,5 +47,13 @@ dispatch (Options file) = print . headers =<< content
       Just f  -> readFile f
 
 --------------------------------------------------------------------------------
-headers :: String -> [HeaderInfo]
-headers = onlyHeaders . readMarkdown def
+headers :: String -> [HeaderTree]
+headers = headerTree . readMarkdown def
+
+--------------------------------------------------------------------------------
+simpleOutline :: Int -> [HeaderTree] -> IO ()
+simpleOutline _ []                     = return ()
+simpleOutline n ((HeaderTree h hs):xs) = do
+  putStrLn (replicate n ' ' ++ title h)
+  simpleOutline (n+2) hs
+  simpleOutline n xs
