@@ -61,8 +61,10 @@ asHHMMSS (TimeCode n) = convert hs <> ":" <> convert ms <> ":" <> convert ss
 
 --------------------------------------------------------------------------------
 -- | Parse a @TimeCode@ out of some text.
-parse :: Text -> Either ParseError TimeCode
-parse = runParser parseHHMMSS () ""
+parse :: Text -> Either String TimeCode
+parse text = case runParser parseHHMMSS () "" text of
+  Left e   -> Left ("failed to parse time code: " ++ show e)
+  Right tc -> Right tc
 
 --------------------------------------------------------------------------------
 -- | Parse a @TimeCode@ in the HH:MM:SS format.

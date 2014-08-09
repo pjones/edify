@@ -38,6 +38,7 @@ library
     Text.Edify.Filter.Exec
     Text.Edify.Filter.Insert
     Text.Edify.Time.TimeCode
+    Text.Edify.Time.TimeTree
     Text.Edify.Util.HeaderTree
     Text.Edify.Util.Indent
     Text.Edify.Util.Narrow
@@ -72,6 +73,10 @@ executable edify
   if flag(maintainer)
     ghc-options: -Werror
 
+  default-extensions:
+    OverloadedStrings
+    RecordWildCards
+
   build-depends: base, edify, text, pandoc-types, pandoc
                , optparse-applicative >= 0.7.0.2 && < 1.0
 
@@ -83,6 +88,7 @@ test-suite test
   main-is: Main.hs
   ghc-options: -Wall -Werror
   default-extensions: OverloadedStrings
+
   build-depends: base
                , edify
                , hspec       >= 1.8.1.1 && < 2.0
