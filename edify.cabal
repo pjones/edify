@@ -35,6 +35,7 @@ library
     Text.Edify.File.Manifest
     Text.Edify.File.Stitch
     Text.Edify.Filter
+    Text.Edify.Filter.Div
     Text.Edify.Filter.Exec
     Text.Edify.Filter.Insert
     Text.Edify.Time.TimeCode

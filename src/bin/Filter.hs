@@ -19,23 +19,48 @@ module Filter
 
 --------------------------------------------------------------------------------
 -- Library imports.
+import           Control.Monad (foldM)
 import           Options.Applicative
+import           Text.Pandoc
 import           Text.Pandoc.JSON
 
 --------------------------------------------------------------------------------
 -- | Project imports.
-import Text.Edify.Filter (filterPandoc)
+import Text.Edify.Filter.Exec (executeBlock)
+import Text.Edify.Filter.Insert (insertFile)
+import Text.Edify.Filter.Div (promoteDivByClass, removeDivByClass)
 
 --------------------------------------------------------------------------------
 -- | No options yet.
 data Options = Options
+  { divClassesToPromote :: [String]
+  , divClassesToRemove  :: [String]
+  }
 
 --------------------------------------------------------------------------------
--- | Nothing to parse yet.
+-- | Parse filter options.
 options :: Parser Options
-options = pure Options
+options = Options <$> (many $ strOption promoteCls)
+                  <*> (many $ strOption removeCls)
+  where
+    promoteCls = long "promote" <> metavar "CLASS" <>
+                 help "Remove a class name from all divs"
+
+    removeCls  = long "remove" <> metavar "CLASS" <>
+                 help "Remove divs with the given class"
 
 --------------------------------------------------------------------------------
--- | Simple filter.
+-- | Pass options on to the filters.
 dispatch :: Options -> IO ()
-dispatch _ = toJSONFilter filterPandoc
+dispatch opts = toJSONFilter (\p -> foldM (flip ($)) p filters)
+  where
+    filters :: [Pandoc -> IO Pandoc]
+    filters =
+      [ bottomUpM insertFile
+      , bottomUpM executeBlock
+      , bottomUpM (makeM (promoteDivByClass $ divClassesToPromote opts))
+      , bottomUpM (makeM (removeDivByClass  $ divClassesToRemove  opts))
+      ]
+
+    makeM :: (Block -> Block) -> (Block -> IO Block)
+    makeM f = \b -> return (f b)
