@@ -81,18 +81,22 @@ simpleOutline n ((HeaderTree h hs):xs) = do
 timeOutline :: [TimeTree] -> IO ()
 timeOutline [] = return ()
 timeOutline ts = do
-  topLevelTotal <- sum <$> mapM (printTree 0) ts
-  putStrLn (replicate (titleWidth - 1) '-' ++ " " ++ timeCodeStr topLevelTotal)
+  topLevelTotal <- sum <$> mapM (\t -> printTree 0 t <* putStr "\n") ts
+  printTitle 0 "[TOTAL]" '-' topLevelTotal
 
 --------------------------------------------------------------------------------
 printTree :: Int -> TimeTree -> IO TimeCode
 printTree n (TimeTree hi timeCode hs) = do
-    putStrLn (title' ++ " " ++ dots ++ " " ++ timeCodeStr timeCode)
+    printTitle n (title hi) '.' timeCode
     mapM_ (printTree (n+2)) hs
     return timeCode
-  where
-    title' = replicate n ' ' ++ take (titleWidth - n) (title hi)
-    dots   = replicate (titleWidth - length title' - 2) '.'
+
+--------------------------------------------------------------------------------
+printTitle :: Int -> String -> Char -> TimeCode -> IO ()
+printTitle n title lineChar tc = putStrLn line where
+  title' = replicate n ' ' ++ take (titleWidth - n) title
+  bar    = replicate (titleWidth - length title' - 2) lineChar
+  line   = title' ++ " " ++ bar ++ " " ++ timeCodeStr tc
 
 --------------------------------------------------------------------------------
 titleWidth :: Int
