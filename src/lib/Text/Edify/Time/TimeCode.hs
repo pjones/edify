@@ -19,6 +19,7 @@ module Text.Edify.Time.TimeCode
        , toSeconds
        , fromSeconds
        , asHHMMSS
+       , parseTimeCode
        , parse
        ) where
 
@@ -34,7 +35,7 @@ import           Text.Printf (printf)
 
 --------------------------------------------------------------------------------
 -- | Time duration represented as seconds.
-newtype TimeCode = TimeCode Int deriving (Num)
+newtype TimeCode = TimeCode Int deriving (Eq, Num, Show)
 
 --------------------------------------------------------------------------------
 -- | The number of seconds represented by the given @TimeCode@.
@@ -60,9 +61,14 @@ asHHMMSS (TimeCode n) = convert hs <> ":" <> convert ms <> ":" <> convert ss
     ss = n - (hs * 3600 + ms * 60)
 
 --------------------------------------------------------------------------------
+-- | Parse a time code.
+parseTimeCode :: Parser TimeCode
+parseTimeCode = parseHHMMSS -- May add more parsers in the future.
+
+--------------------------------------------------------------------------------
 -- | Parse a @TimeCode@ out of some text.
 parse :: Text -> Either String TimeCode
-parse text = case runParser parseHHMMSS () "" text of
+parse text = case runParser parseTimeCode () "" text of
   Left e   -> Left ("failed to parse time code: " ++ show e)
   Right tc -> Right tc
 

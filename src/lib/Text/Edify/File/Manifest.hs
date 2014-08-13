@@ -19,9 +19,12 @@ module Text.Edify.File.Manifest (Manifest, files, parseFile) where
 import Control.Applicative hiding ((<|>), many)
 import Data.Text (Text)
 import qualified Data.Text as T
-import qualified Data.Text.IO as T
 import Text.Parsec hiding (parse)
 import Text.Parsec.Text
+
+--------------------------------------------------------------------------------
+-- Project imports.
+import qualified Text.Edify.Util.Parse as EP
 
 --------------------------------------------------------------------------------
 -- | Wrapper around a list of file names.
@@ -48,14 +51,7 @@ onlyFiles = concatMap extract . filter predicate where
 --------------------------------------------------------------------------------
 -- | Parse a file and return a 'Manifest'.
 parseFile :: FilePath -> IO (Either String Manifest)
-parseFile file = (convert . parse) <$> T.readFile file where
-  -- Parse the contents of a file.
-  parse :: Text -> Either ParseError Manifest
-  parse = runParser fileList () file
-
-  -- Convert the parsec error to a string.
-  convert :: Either ParseError Manifest -> Either String Manifest
-  convert = either (Left . show) Right
+parseFile = EP.parseFile fileList
 
 --------------------------------------------------------------------------------
 -- | Parses a list of file names.
@@ -77,9 +73,9 @@ fileName = do first  <- anyChar
 --------------------------------------------------------------------------------
 -- | Parse out whitespace as a comment.
 whitespace :: Parser Token
-whitespace = many1 space >> return Comment
+whitespace = EP.parseWhitespace >> return Comment
 
 --------------------------------------------------------------------------------
 -- | Parse comments.
 comment :: Parser Token
-comment = char '#' >> manyTill anyChar newline >> return Comment <?> "comment"
+comment = EP.parseComment >> return Comment

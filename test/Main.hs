@@ -20,10 +20,12 @@ import Test.Tasty
 -- Project imports.
 import qualified ManifestTest
 import qualified TimeCodeTest
+import qualified TimeFileTest
 
 --------------------------------------------------------------------------------
 main :: IO ()
 main = defaultMain $ testGroup "Tests"
   [ ManifestTest.tests
   , TimeCodeTest.tests
+  , TimeFileTest.tests
   ]
