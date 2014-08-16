@@ -19,6 +19,9 @@ module Outline
 
 --------------------------------------------------------------------------------
 -- Library imports.
+import           Control.Monad
+import           Control.Monad.IO.Class (liftIO)
+import           Control.Monad.Trans.Maybe
 import           Data.Monoid
 import qualified Data.Text as T
 import           Options.Applicative
@@ -28,36 +31,66 @@ import           Text.Pandoc.Readers.Markdown
 
 --------------------------------------------------------------------------------
 -- Project imports.
-import Text.Edify.Time.TimeCode
-import Text.Edify.Time.TimeTree
-import Text.Edify.Util.HeaderTree
+import qualified Text.Edify.File.Time as ET
+import           Text.Edify.Time.TimeCode
+import           Text.Edify.Time.TimeTree
+import           Text.Edify.Util.HeaderTree
 
 --------------------------------------------------------------------------------
 -- | Options for the outline command.
 data Options = Options
-  { file    :: Maybe FilePath -- ^ File to read (or STDIN).
-  , timeKey :: Maybe String   -- ^ Time code from header attribute.
+  { file     :: Maybe FilePath -- ^ File to read (or STDIN).
+  , timeKey  :: Maybe String   -- ^ Time codes from header attribute.
+  , timeFile :: Maybe FilePath -- ^ Time codes from a file.
   }
 
 --------------------------------------------------------------------------------
 -- | Command line parser for the outline command.
 options :: Parser Options
 options = Options <$> (optional $ argument str (metavar "FILE"))
-                  <*> (optional $ strOption timeKey)
+                  <*> (optional $ strOption timeKeyOpt)
+                  <*> (optional $ strOption timeFileOpt)
   where
-    timeKey = short 'a' <> long "time-attr" <> metavar "KEY" <>
-              help "Read time codes from header attribute KEY"
+    timeKeyOpt = short 'a' <> long "time-attr" <> metavar "KEY" <>
+                 help "Read time codes from header attribute KEY"
+
+    timeFileOpt = short 'f' <> long "time-file" <> metavar "FILE" <>
+                  help "Read time codes from a file"
 
 --------------------------------------------------------------------------------
 dispatch :: Options -> IO ()
 dispatch Options{..} = do
   markdown <- content file
+  treeM    <- runMaybeT (msum $ map ($ (headers markdown)) timeCodeOptions)
 
-  case timeKey of
-    Nothing  -> simpleOutline 0 (headers markdown)
-    Just key -> case timeTree key (headers markdown) of
-      Left e     -> fail e
-      Right tree -> timeOutline tree
+  case treeM of
+    Nothing   -> simpleOutline 0 (headers markdown)
+    Just tree -> timeOutline tree
+
+  where
+    timeCodeOptions :: [[HeaderTree] -> MaybeT IO [TimeTree]]
+    timeCodeOptions = [usingBoth, usingAttr, usingMap]
+
+    usingBoth :: [HeaderTree] -> MaybeT IO [TimeTree]
+    usingBoth hs = do
+      key   <- maybe mzero return timeKey
+      mFile <- maybe mzero return timeFile
+      dictE <- liftIO (ET.parseFile mFile)
+
+      either (liftIO . fail) return $ do
+        dict <- dictE
+        timeTreeFromMapOrAttr dict key hs
+
+    usingAttr :: [HeaderTree] -> MaybeT IO [TimeTree]
+    usingAttr hs = do
+      key <- maybe mzero return timeKey
+      either (liftIO . fail) return $ timeTreeFromAttr key hs
+
+    usingMap :: [HeaderTree] -> MaybeT IO [TimeTree]
+    usingMap hs = do
+      mFile <- maybe mzero return timeFile
+      m     <- liftIO (ET.parseFile mFile)
+      either (liftIO . fail) return $ flip timeTreeFromMap hs =<< m
 
 --------------------------------------------------------------------------------
 content :: Maybe FilePath -> IO String

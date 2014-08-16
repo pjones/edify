@@ -41,6 +41,7 @@ library
     Text.Edify.Filter.Insert
     Text.Edify.Time.TimeCode
     Text.Edify.Time.TimeTree
+    Text.Edify.Util.Error
     Text.Edify.Util.HeaderTree
     Text.Edify.Util.Indent
     Text.Edify.Util.Narrow
@@ -82,6 +83,7 @@ executable edify
 
   build-depends: base, edify, text, pandoc-types, pandoc
                , optparse-applicative >= 0.7.0.2 && < 1.0
+               , transformers         >= 0.3     && < 0.5
 
 ------------------------------------------------------------------------------
 test-suite test
