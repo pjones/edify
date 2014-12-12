@@ -17,7 +17,7 @@ module ManifestTest (tests) where
 import Control.Applicative
 import Data.Text (Text)
 import Test.Tasty
-import Test.Tasty.Hspec
+import Test.Tasty.HUnit
 
 --------------------------------------------------------------------------------
 -- Project imports.
@@ -30,8 +30,9 @@ tests = testGroup "Manifest"
   ]
 
 --------------------------------------------------------------------------------
-parsedSpec :: Spec
-parsedSpec = it "Test file" (go `shouldReturn` fileList)
+parsedSpec :: Assertion
+parsedSpec = do parsed <- go
+                parsed @=? fileList
   where
     go :: IO (Either String [Text])
     go = convert <$> parseFile "test/manifest.txt"

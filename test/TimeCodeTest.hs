@@ -16,7 +16,7 @@ module TimeCodeTest (tests) where
 -- Library imports.
 import Data.Text (Text)
 import Test.Tasty
-import Test.Tasty.Hspec
+import Test.Tasty.HUnit
 
 --------------------------------------------------------------------------------
 -- Project imports.
@@ -25,29 +25,31 @@ import Text.Edify.Time.TimeCode
 --------------------------------------------------------------------------------
 tests :: TestTree
 tests = testGroup "TimeCode"
-  [ testCase "asHHMMSS" hhmmssSpec
-  , testCase "Parsing" parsedSpec
+  [ testGroup "asHHMMSS" hhmmssTest
+  , testGroup "Parsing" parsedTest
   ]
 
 --------------------------------------------------------------------------------
-hhmmssSpec ::Spec
-hhmmssSpec = do
-  it "1"    $ asHHMMSS (fromSeconds 1)    `shouldBe` "00:00:01"
-  it "3600" $ asHHMMSS (fromSeconds 3600) `shouldBe` "01:00:00"
-  it "3660" $ asHHMMSS (fromSeconds 3660) `shouldBe` "01:01:00"
+hhmmssTest :: [TestTree]
+hhmmssTest =
+  [ testCase "1"    (asHHMMSS (fromSeconds 1)    @=? "00:00:01")
+  , testCase "3600" (asHHMMSS (fromSeconds 3600) @=? "01:00:00")
+  , testCase "3660" (asHHMMSS (fromSeconds 3660) @=? "01:01:00")
+  ]
 
 --------------------------------------------------------------------------------
-parsedSpec :: Spec
-parsedSpec = do
-    it "01:00:00" (go "01:00:00" `shouldReturn` 3600)
-    it "01:01:00" (go "01:01:00" `shouldReturn` 3660)
-    it "01:00:01" (go "01:00:01" `shouldReturn` 3601)
-    it "aa:00:00" (go "aa:00:00" `shouldThrow`  anyIOException)
-    it "00:aa:00" (go "00:aa:00" `shouldThrow`  anyIOException)
-    it "00:00:aa" (go "00:00:aa" `shouldThrow`  anyIOException)
-    it "00000000" (go "00000000" `shouldThrow`  anyIOException)
+parsedTest :: [TestTree]
+parsedTest =
+    [ testCase "01:00:00" (go "01:00:00" @=? Just 3600)
+    , testCase "01:01:00" (go "01:01:00" @=? Just 3660)
+    , testCase "01:00:01" (go "01:00:01" @=? Just 3601)
+    , testCase "aa:00:00" (go "aa:00:00" @=? Nothing)
+    , testCase "00:aa:00" (go "00:aa:00" @=? Nothing)
+    , testCase "00:00:aa" (go "00:00:aa" @=? Nothing)
+    , testCase "00000000" (go "00000000" @=? Nothing)
+    ]
   where
-    go :: Text -> IO Int
+    go :: Text -> Maybe Int
     go input = case parse input of
-      Left e  -> fail (show e)
-      Right t -> return (toSeconds t)
+      Left _  -> Nothing
+      Right t -> Just (toSeconds t)

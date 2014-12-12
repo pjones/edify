@@ -18,7 +18,7 @@ module TimeFileTest (tests) where
 import           Data.Map (Map)
 import qualified Data.Map as M
 import           Test.Tasty
-import           Test.Tasty.Hspec
+import           Test.Tasty.HUnit
 
 --------------------------------------------------------------------------------
 -- Project imports.
@@ -32,8 +32,9 @@ tests = testGroup "TimeFile"
   ]
 
 --------------------------------------------------------------------------------
-parsedSpec :: Spec
-parsedSpec = it "Test file" (go `shouldReturn` timeEntries)
+parsedSpec :: Assertion
+parsedSpec = do actual <- go
+                actual @=? timeEntries
   where
     go :: IO (Either String (Map String TimeCode))
     go = parseFile "test/timecodes.txt"
