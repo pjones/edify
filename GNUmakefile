@@ -1,4 +1,11 @@
 ################################################################################
+.PHONEY: all install
+
+################################################################################
+# Set up the default target.
+all::
+
+################################################################################
 # Ask `git' to update the submodule and make haskell.mk available.
 util/haskell.mk:
 	git submodule update --init
