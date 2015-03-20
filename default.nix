@@ -3,7 +3,7 @@
 # of my sandboxing will work correctly.
 { pkgs ? (import <nixpkgs> {}) }:
 
-let haskellPackages = pkgs.haskellPackages_ghc783_profiling; in
+let haskellPackages = pkgs.haskellPackages; in
 
 haskellPackages.cabal.mkDerivation (self: {
   pname = "edify";
