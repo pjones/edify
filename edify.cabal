@@ -97,7 +97,7 @@ test-suite test
   build-depends: base
                , containers
                , edify
-               , tasty       >= 0.10    && < 0.11
+               , tasty       >= 0.10    && < 0.12
                , tasty-hunit >= 0.9     && < 0.10
                , text
 

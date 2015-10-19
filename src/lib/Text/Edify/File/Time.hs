@@ -18,7 +18,6 @@ module Text.Edify.File.Time
 
 --------------------------------------------------------------------------------
 -- Library imports.
-import           Control.Applicative hiding ((<|>), many)
 import           Data.Char
 import           Data.Map (Map)
 import qualified Data.Map as M
@@ -65,7 +64,7 @@ entry = do
 --------------------------------------------------------------------------------
 -- | Convert tokens into a mapping of time codes.
 tokensToMap :: [Token] -> Map String TimeCode
-tokensToMap = foldr insert (M.empty)
+tokensToMap = foldr insert M.empty
   where
     insert :: Token -> Map String TimeCode -> Map String TimeCode
     insert (Comment) m         = m

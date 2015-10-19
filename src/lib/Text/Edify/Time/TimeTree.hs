@@ -78,20 +78,20 @@ timeTreeFromMapOrAttr m key = timeTree (timeCodeFromMapOrAttr m key)
 -- function.
 timeTree :: Lookup -> [HeaderTree] -> Either String [TimeTree]
 timeTree _ []                      = Right []
-timeTree f ((HeaderTree hi hs):xs) = do
+timeTree f (HeaderTree hi hs:xs) = do
   others <- timeTree f xs
 
   case (hs, f hi) of
     -- Leafs.  Must have time codes.
     ([], Left e)   -> Left e
-    ([], Right tc) -> return ((TimeTree hi tc []):others)
+    ([], Right tc) -> return (TimeTree hi tc []:others)
 
     -- Nodes.  Must not have time codes.
     (_,  Right _)  -> Left ("non-leaf header with time code: " ++ title hi)
     (hs', Left _)  -> do
       below <- timeTree f hs'
       let total = sum $ map (\(TimeTree _ tc _) -> tc) below
-      return ((TimeTree hi total below):others)
+      return (TimeTree hi total below:others)
 
 --------------------------------------------------------------------------------
 timeCodeFromMap :: Map String TimeCode -> HeaderInfo -> Either String TimeCode

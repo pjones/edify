@@ -25,7 +25,6 @@ import           Control.Monad.Trans.Maybe
 import           Data.Monoid
 import qualified Data.Text as T
 import           Options.Applicative
-import           System.IO
 import           Text.Pandoc.Options
 import           Text.Pandoc.Readers.Markdown
 
@@ -47,9 +46,9 @@ data Options = Options
 --------------------------------------------------------------------------------
 -- | Command line parser for the outline command.
 options :: Parser Options
-options = Options <$> (optional $ argument str (metavar "FILE"))
-                  <*> (optional $ strOption timeKeyOpt)
-                  <*> (optional $ strOption timeFileOpt)
+options = Options <$> optional (argument str (metavar "FILE"))
+                  <*> optional (strOption timeKeyOpt)
+                  <*> optional (strOption timeFileOpt)
   where
     timeKeyOpt = short 'a' <> long "time-attr" <> metavar "KEY" <>
                  help "Read time codes from header attribute KEY"
@@ -61,7 +60,7 @@ options = Options <$> (optional $ argument str (metavar "FILE"))
 dispatch :: Options -> IO ()
 dispatch Options{..} = do
   markdown <- content file
-  treeM    <- runMaybeT (msum $ map ($ (headers markdown)) timeCodeOptions)
+  treeM    <- runMaybeT (msum $ map ($ headers markdown) timeCodeOptions)
 
   case treeM of
     Nothing   -> simpleOutline 0 (headers markdown)
@@ -95,17 +94,19 @@ dispatch Options{..} = do
 --------------------------------------------------------------------------------
 content :: Maybe FilePath -> IO String
 content file = case file of
-  Nothing -> hGetContents stdin
+  Nothing -> getContents
   Just f  -> readFile f
 
 --------------------------------------------------------------------------------
 headers :: String -> [HeaderTree]
-headers = headerTree . readMarkdown def
+headers path = case readMarkdown def path of
+  Left _  -> []
+  Right x -> headerTree x
 
 --------------------------------------------------------------------------------
 simpleOutline :: Int -> [HeaderTree] -> IO ()
 simpleOutline _ []                     = return ()
-simpleOutline n ((HeaderTree h hs):xs) = do
+simpleOutline n (HeaderTree h hs:xs) = do
   putStrLn (replicate n ' ' ++ title h)
   simpleOutline (n+2) hs
   simpleOutline n xs

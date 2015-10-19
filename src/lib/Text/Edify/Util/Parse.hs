@@ -19,7 +19,6 @@ module Text.Edify.Util.Parse
 
 --------------------------------------------------------------------------------
 -- Library imports.
-import           Control.Applicative hiding ((<|>), many)
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T

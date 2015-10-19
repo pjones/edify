@@ -16,7 +16,6 @@ module Text.Edify.File.Manifest (Manifest, files, parseFile) where
 
 --------------------------------------------------------------------------------
 -- Library imports.
-import Control.Applicative hiding ((<|>), many)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Text.Parsec hiding (parse)

@@ -14,7 +14,6 @@ module ManifestTest (tests) where
 
 --------------------------------------------------------------------------------
 -- Library imports.
-import Control.Applicative
 import Data.Text (Text)
 import Test.Tasty
 import Test.Tasty.HUnit

@@ -40,8 +40,8 @@ data Options = Options
 --------------------------------------------------------------------------------
 -- | Parse filter options.
 options :: Parser Options
-options = Options <$> (many $ strOption promoteCls)
-                  <*> (many $ strOption removeCls)
+options = Options <$> many (strOption promoteCls)
+                  <*> many (strOption removeCls)
   where
     promoteCls = long "promote" <> metavar "CLASS" <>
                  help "Remove a class name from all divs"
@@ -62,5 +62,5 @@ dispatch opts = toJSONFilter (\p -> foldM (flip ($)) p filters)
       , bottomUpM (makeM (removeDivByClass  $ divClassesToRemove  opts))
       ]
 
-    makeM :: (Block -> Block) -> (Block -> IO Block)
-    makeM f = \b -> return (f b)
+    makeM :: (Block -> Block) -> Block -> IO Block
+    makeM f b = return (f b)
