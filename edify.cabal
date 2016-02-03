@@ -1,33 +1,29 @@
 name:          edify
-version:       0.1.0.0
+version:       0.2.0.0
 synopsis:      Markdown (via pandoc) processing and content tools for Devalot.com
 license:       BSD3
 license-file:  LICENSE.md
 author:        Peter Jones <pjones@devalot.com>
 maintainer:    Peter Jones <pjones@devalot.com>
-copyright:     Copyright (c) 2013, 2014 Peter Jones
+copyright:     Copyright (c) 2013-2016 Peter Jones
 category:      Text
 build-type:    Simple
-cabal-version: >= 1.10
-tested-with:   GHC==7.6.3, GHC==7.8.2
+tested-with:   GHC==7.6.3, GHC==7.8.3, GHC==7.10.3
 homepage:      https://github.com/pjones/edify
 bug-reports:   https://github.com/pjones/edify/issues
+cabal-version: >= 1.18
 description:   TODO
 
 ------------------------------------------------------------------------------
-extra-source-files: README.md
+extra-source-files:
+  README.md
+  test/*.txt
 
 ------------------------------------------------------------------------------
 flag maintainer
   description: Enable settings for the package maintainer.
   manual: True
   default: False
-
-------------------------------------------------------------------------------
--- You can disable the hlint test suite with -f-test-hlint
-flag test-hlint
-  default: True
-  manual: True
 
 ------------------------------------------------------------------------------
 library
@@ -74,6 +70,12 @@ executable edify
   main-is: Main.hs
   ghc-options: -Wall -fwarn-incomplete-uni-patterns
 
+  other-modules:
+    Filter
+    Outline
+    Stitch
+    Paths_edify
+
   if flag(maintainer)
     ghc-options: -Werror
 
@@ -94,24 +96,14 @@ test-suite test
   ghc-options: -Wall -Werror
   default-extensions: OverloadedStrings
 
+  other-modules:
+    ManifestTest
+    TimeCodeTest
+    TimeFileTest
+
   build-depends: base
                , containers
                , edify
                , tasty       >= 0.10    && < 0.12
                , tasty-hunit >= 0.9     && < 0.10
                , text
-
-------------------------------------------------------------------------------
--- Not working with GHC 7.8.2 yet.
--- test-suite hlint
---   type: exitcode-stdio-1.0
---   main-is: hlint.hs
---   ghc-options: -w
---   hs-source-dirs: test
-
---   if !flag(test-hlint)
---     buildable: False
---   else
---     build-depends:
---       base,
---       hlint >= 1.7

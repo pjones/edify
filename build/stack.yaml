@@ -1,0 +1,8 @@
+resolver: lts-4.2
+
+packages:
+- ../
+
+flags:
+  edify:
+    maintainer: true
