@@ -63,7 +63,7 @@ instance Exception MissingTokenError
 insertFile :: Block -> IO Block
 insertFile cb@(CodeBlock (blkid, classes, alist) _) =
   case lookup "insert" alist <|> lookup "include" alist of
-    Just f  -> return . CodeBlock (blkid, classes, alist) =<< newtxt f
+    Just f  -> CodeBlock (blkid, classes, alist) <$> newtxt f
     Nothing -> return cb
   where newtxt f = readCodeFile f classes (lookup "token" alist)
 insertFile x = return x

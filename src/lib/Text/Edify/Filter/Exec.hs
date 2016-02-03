@@ -33,7 +33,7 @@ instance Exception FailedCommandError
 executeBlock :: Block -> IO Block
 executeBlock cb@(CodeBlock (x, y, alist) input) =
   case lookup "exec" alist of
-    Just cmd -> return . CodeBlock (x, y, alist) =<< execute input cmd
+    Just cmd -> CodeBlock (x, y, alist) <$> execute input cmd
     Nothing  -> return cb
 executeBlock x = return x
 

@@ -67,5 +67,5 @@ tokensToMap :: [Token] -> Map String TimeCode
 tokensToMap = foldr insert M.empty
   where
     insert :: Token -> Map String TimeCode -> Map String TimeCode
-    insert (Comment) m         = m
+    insert Comment m           = m
     insert (Entry key value) m = M.insert key value m
