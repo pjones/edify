@@ -19,7 +19,6 @@ module Text.Edify.Filter.Insert
 -- | Library imports.
 import Control.Applicative
 import Control.Exception
-import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.Typeable
@@ -31,13 +30,13 @@ import Text.Edify.Util.Indent
 import Text.Edify.Util.Narrow
 
 --------------------------------------------------------------------------------
-data MissingTokenError = MissingTokenError String String
+data MissingTokenError = MissingTokenError String String String
   deriving (Typeable)
 
 instance Show MissingTokenError where
-  show (MissingTokenError file token) =
+  show (MissingTokenError file token err) =
     "MissingTokenError: " ++ "can't find token '" ++
-    token ++ "' in " ++ file
+    token ++ "' in " ++ file ++ " " ++ err
 
 instance Exception MissingTokenError
 
@@ -65,27 +64,16 @@ insertFile cb@(CodeBlock (blkid, classes, alist) _) =
   case lookup "insert" alist <|> lookup "include" alist of
     Just f  -> CodeBlock (blkid, classes, alist) <$> newtxt f
     Nothing -> return cb
-  where newtxt f = readCodeFile f classes (lookup "token" alist)
+  where newtxt f = readCodeFile f (lookup "token" alist)
 insertFile x = return x
 
 --------------------------------------------------------------------------------
 -- | Read a file with code in it, possibly narrowing to a token.
-readCodeFile :: FilePath -> [String] -> Maybe String -> IO String
-readCodeFile path _ tokenM = case tokenM of
-  Nothing    -> transformS <$> readFile path
-  Just token -> do
-    contents <- T.readFile path
-    case narrow (T.pack token) contents of
-      Nothing  -> throwIO (MissingTokenError path token)
-      Just txt -> (return . T.unpack . transformT) txt
+readCodeFile :: FilePath -> Maybe String -> IO String
+readCodeFile path Nothing      = readFile path
+readCodeFile path (Just token) = do
+  contents <- T.readFile path
 
-  where
-    transformS :: String -> String
-    transformS = T.unpack . transformT . T.pack
-
-    transformT :: Text -> Text
---    transformT = specialComments path lang . removeIndent
-    transformT = removeIndent
-
-    -- lang :: String
-    -- lang = maybe "" id (listToMaybe classes)
+  case narrow (Token (T.pack token))  contents of
+    Left err  -> throwIO (MissingTokenError path token err)
+    Right txt -> (return . T.unpack . removeIndent) txt
