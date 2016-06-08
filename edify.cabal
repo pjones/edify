@@ -92,11 +92,6 @@ test-suite test
     TimeCodeTest
     TimeFileTest
 
-  other-modules:
-    ManifestTest
-    TimeCodeTest
-    TimeFileTest
-
   build-depends: base
                , containers
                , edify
