@@ -5,6 +5,9 @@ Markdown documents.  I ([Peter J. Jones][pjones]) use it for all of my
 writing and teaching (published and unpublished books, course
 curriculum, blog articles, etc.)
 
+**NOTE:** Please read the raw Markdown for this README.
+Github-Flavored Markdown sucks.
+
 ## Available Commands
 
   * `filter`: A Pandoc filter that provides custom extensions to Markdown.
