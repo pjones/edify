@@ -1,8 +1,0 @@
-resolver: lts-5.15
-
-packages:
-- ../
-
-flags:
-  edify:
-    maintainer: true
