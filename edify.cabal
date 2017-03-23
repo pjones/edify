@@ -1,5 +1,5 @@
 name:          edify
-version:       0.2.0.0
+version:       0.2.1.0
 synopsis:      Markdown (via pandoc) processing and content tools for Devalot.com
 license:       BSD3
 license-file:  LICENSE.md
@@ -8,7 +8,7 @@ maintainer:    Peter Jones <pjones@devalot.com>
 copyright:     Copyright (c) 2013-2016 Peter Jones
 category:      Text
 build-type:    Simple
-tested-with:   GHC==7.6.3, GHC==7.8.3, GHC==7.10.3
+tested-with:   GHC==7.6.3, GHC==7.8.3, GHC==7.10.3, GHC==8.0.2
 homepage:      https://github.com/pjones/edify
 bug-reports:   https://github.com/pjones/edify/issues
 cabal-version: >= 1.18
@@ -77,7 +77,7 @@ executable edify
 
   build-depends: base, edify, text, pandoc-types, pandoc
                , optparse-applicative >= 0.7.0.2 && < 1.0
-               , transformers         >= 0.3     && < 0.5
+               , transformers         >= 0.3     && < 0.6
 
 ------------------------------------------------------------------------------
 test-suite test

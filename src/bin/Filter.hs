@@ -19,10 +19,11 @@ module Filter
 
 --------------------------------------------------------------------------------
 -- Library imports.
-import           Control.Monad (foldM)
-import           Options.Applicative
-import           Text.Pandoc
-import           Text.Pandoc.JSON
+import Control.Monad (foldM)
+import Data.Monoid
+import Options.Applicative
+import Text.Pandoc
+import Text.Pandoc.JSON
 
 --------------------------------------------------------------------------------
 -- | Project imports.
