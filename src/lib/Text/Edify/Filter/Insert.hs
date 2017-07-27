@@ -16,7 +16,7 @@ module Text.Edify.Filter.Insert
        ) where
 
 --------------------------------------------------------------------------------
--- | Library imports.
+-- Library imports.
 import Control.Applicative
 import Control.Exception
 import qualified Data.Text as T
