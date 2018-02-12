@@ -10,7 +10,8 @@ the LICENSE.md file.
 -}
 
 --------------------------------------------------------------------------------
--- | Extra Pandoc features for dealing with source code.
+-- | Extra Pandoc features for dealing with source code and for
+-- inserting other Pandoc input files.
 module Text.Edify.Filter.Insert
        ( insertFile
        ) where
@@ -18,27 +19,17 @@ module Text.Edify.Filter.Insert
 --------------------------------------------------------------------------------
 -- Library imports.
 import Control.Applicative
-import Control.Exception
+import Control.Monad.Except (throwError)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
-import Data.Typeable
 import Text.Pandoc
 
 --------------------------------------------------------------------------------
 -- Project imports.
+import Text.Edify.Filter.FilterT
 import Text.Edify.Util.Indent
 import Text.Edify.Util.Narrow
-
---------------------------------------------------------------------------------
-data MissingTokenError = MissingTokenError String String String
-  deriving (Typeable)
-
-instance Show MissingTokenError where
-  show (MissingTokenError file token err) =
-    "MissingTokenError: " ++ "can't find token '" ++
-    token ++ "' in " ++ file ++ " " ++ err
-
-instance Exception MissingTokenError
 
 --------------------------------------------------------------------------------
 -- | Copies the contents of a file into the body of a code block.  The
@@ -59,7 +50,7 @@ instance Exception MissingTokenError
 -- attribute instead of @insert@.
 --
 -- Taken from <http://johnmacfarlane.net/pandoc/scripting.html#include-files>.
-insertFile :: Block -> IO Block
+insertFile :: (MonadIO m) => Block -> FilterT m Block
 insertFile cb@(CodeBlock (blkid, classes, alist) _) =
   case lookup "insert" alist <|> lookup "include" alist of
     Just f  -> CodeBlock (blkid, classes, alist) <$> newtxt f
@@ -69,11 +60,12 @@ insertFile x = return x
 
 --------------------------------------------------------------------------------
 -- | Read a file with code in it, possibly narrowing to a token.
-readCodeFile :: FilePath -> Maybe String -> IO String
-readCodeFile path Nothing      = readFile path
+readCodeFile :: (MonadIO m) => FilePath -> Maybe String -> FilterT m String
+readCodeFile path Nothing      = realpath path >>= liftIO . readFile
 readCodeFile path (Just token) = do
-  contents <- T.readFile path
+  contents <- realpath path >>= liftIO . T.readFile
 
   case narrow (Token (T.pack token))  contents of
-    Left err  -> throwIO (MissingTokenError path token err)
     Right txt -> (return . T.unpack . removeIndent) txt
+    Left err  -> throwError (Error $ "can't find token '" ++ token ++
+                             "' in " ++ path ++ ": " ++ err)

@@ -12,31 +12,22 @@ the LICENSE.md file.
 --------------------------------------------------------------------------------
 -- | Command to filter a Pandoc JSON stream.
 module Filter
-       ( Options
-       , options
-       , dispatch
-       ) where
+  ( Options
+  , options
+  , dispatch
+  ) where
 
 --------------------------------------------------------------------------------
 -- Library imports.
-import Control.Monad (foldM)
-import Data.Monoid
+import Data.Monoid ((<>))
 import Options.Applicative
-import Text.Pandoc
-import Text.Pandoc.JSON
+import System.Directory (getCurrentDirectory)
+import System.Exit (die)
+import Text.Pandoc.JSON (toJSONFilter)
 
 --------------------------------------------------------------------------------
--- | Project imports.
-import Text.Edify.Filter.Exec (executeBlock)
-import Text.Edify.Filter.Insert (insertFile)
-import Text.Edify.Filter.Div (promoteDivByClass, removeDivByClass)
-
---------------------------------------------------------------------------------
--- | No options yet.
-data Options = Options
-  { divClassesToPromote :: [String]
-  , divClassesToRemove  :: [String]
-  }
+-- Project imports.
+import Text.Edify.Filter
 
 --------------------------------------------------------------------------------
 -- | Parse filter options.
@@ -53,15 +44,11 @@ options = Options <$> many (strOption promoteCls)
 --------------------------------------------------------------------------------
 -- | Pass options on to the filters.
 dispatch :: Options -> IO ()
-dispatch opts = toJSONFilter (\p -> foldM (flip ($)) p filters)
-  where
-    filters :: [Pandoc -> IO Pandoc]
-    filters =
-      [ bottomUpM insertFile
-      , bottomUpM executeBlock
-      , bottomUpM (makeM (promoteDivByClass $ divClassesToPromote opts))
-      , bottomUpM (makeM (removeDivByClass  $ divClassesToRemove  opts))
-      ]
+dispatch opts = do
+  pwd <- getCurrentDirectory
 
-    makeM :: (Block -> Block) -> Block -> IO Block
-    makeM f b = return (f b)
+  toJSONFilter $ \p -> do
+    fs  <- runFilterT pwd (filters opts p)
+    case fs of
+      Left e   -> die (show e)
+      Right p' -> return p'

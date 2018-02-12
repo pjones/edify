@@ -16,21 +16,18 @@ module Text.Edify.Filter.Exec
        ) where
 
 --------------------------------------------------------------------------------
-import Control.Exception hiding (handle)
-import Data.Typeable
+import Control.Monad.Except (throwError)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import System.Exit
 import System.Process
 import Text.Pandoc
 
 --------------------------------------------------------------------------------
--- | Exception thrown if the command to execute fails.
-data FailedCommandError = FailedCommandError String
-  deriving (Typeable, Show)
-
-instance Exception FailedCommandError
+-- Project imports.
+import Text.Edify.Filter.FilterT
 
 --------------------------------------------------------------------------------
-executeBlock :: Block -> IO Block
+executeBlock :: (MonadIO m) => Block -> FilterT m Block
 executeBlock cb@(CodeBlock (x, y, alist) input) =
   case lookup "exec" alist of
     Just cmd -> CodeBlock (x, y, alist) <$> execute input cmd
@@ -38,13 +35,13 @@ executeBlock cb@(CodeBlock (x, y, alist) input) =
 executeBlock x = return x
 
 --------------------------------------------------------------------------------
-execute :: String -> String -> IO String
+execute :: (MonadIO m) => String -> String -> FilterT m String
 execute input cmd = do
-  (exitcode, sout, _) <- readProcessWithExitCode "/bin/sh" args input'
+  (exitcode, sout, _) <- liftIO (readProcessWithExitCode "/bin/sh" args input')
 
   case (exitcode, sout) of
     (ExitSuccess, x) -> return x
-    _ -> throwIO (FailedCommandError cmd)
+    _ -> throwError (Error $ "command failed: " ++ cmd)
 
   where
     -- Pandoc doesn't include final newline.
