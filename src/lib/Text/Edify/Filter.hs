@@ -11,24 +11,24 @@ the LICENSE.md file.
 
 --------------------------------------------------------------------------------
 module Text.Edify.Filter
-  ( FilterT
-  , Options(..)
-  , runFilterT
-  , filters
+  ( Options(..)
+  , runFilters
   ) where
 
 --------------------------------------------------------------------------------
 -- Library imports.
-import Control.Monad (foldM)
 import Control.Monad.IO.Class (MonadIO)
-import Text.Pandoc
+import Data.Bifunctor (bimap)
+import Text.Pandoc.Definition
+import Text.Pandoc.Generic
+import Text.Pandoc.Walk
 
 --------------------------------------------------------------------------------
 -- Project imports.
 import Text.Edify.Filter.Div (promoteDivByClass, removeDivByClass)
 import Text.Edify.Filter.Exec (executeBlock)
-import Text.Edify.Filter.FilterT (FilterT, runFilterT)
-import Text.Edify.Filter.Insert (insertFile)
+import Text.Edify.Filter.FilterT (FilterT, runFilterT, processPandoc)
+import Text.Edify.Filter.Insert (insertFile, insertParsedFile)
 
 --------------------------------------------------------------------------------
 data Options = Options
@@ -37,21 +37,23 @@ data Options = Options
   }
 
 --------------------------------------------------------------------------------
-filters :: (MonadIO m)
+runFilters :: (MonadIO m)
         => Options
         -> Pandoc
-        -> FilterT m Pandoc
+        -> m (Either String Pandoc)
 
-filters opts p =
-    foldM (flip ($)) p fts
+runFilters opts doc = do
+     result <- runFilterT Nothing fts (processPandoc doc)
+     return (bimap show id result)
 
   where
     fts :: (MonadIO m) => [Pandoc -> FilterT m Pandoc]
     fts =
-      [ bottomUpM insertFile
-      , bottomUpM executeBlock
-      , bottomUpM (makeM (promoteDivByClass $ divClassesToPromote opts))
-      , bottomUpM (makeM (removeDivByClass  $ divClassesToRemove  opts))
+      [ bottomUpM insertParsedFile
+      , walkM insertFile
+      , walkM executeBlock
+      , walkM (makeM (promoteDivByClass $ divClassesToPromote opts))
+      , walkM (makeM (removeDivByClass  $ divClassesToRemove  opts))
       ]
 
     makeM :: (Monad m) => (Block -> Block) -> Block -> m Block

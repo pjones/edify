@@ -13,8 +13,9 @@ the LICENSE.md file.
 -- | Extra Pandoc features for dealing with source code and for
 -- inserting other Pandoc input files.
 module Text.Edify.Filter.Insert
-       ( insertFile
-       ) where
+  ( insertFile
+  , insertParsedFile
+  ) where
 
 --------------------------------------------------------------------------------
 -- Library imports.
@@ -23,11 +24,13 @@ import Control.Monad.Except (throwError)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
-import Text.Pandoc
+import Data.Traversable (traverse)
+import Text.Pandoc.Definition
 
 --------------------------------------------------------------------------------
 -- Project imports.
 import Text.Edify.Filter.FilterT
+import Text.Edify.Util.Inclusion
 import Text.Edify.Util.Indent
 import Text.Edify.Util.Narrow
 
@@ -69,3 +72,36 @@ readCodeFile path (Just token) = do
     Right txt -> (return . T.unpack . removeIndent) txt
     Left err  -> throwError (Error $ "can't find token '" ++ token ++
                              "' in " ++ path ++ ": " ++ err)
+
+--------------------------------------------------------------------------------
+-- | Replaces file insertion markers with the files they reference.
+--
+-- Example:
+--
+-- > # Some Heading
+-- >
+-- > <<(foo.md)
+--
+-- The line referencing @foo.md@ will be replaced with its contents.
+insertParsedFile :: (MonadIO m) => [Block] -> FilterT m [Block]
+insertParsedFile = fmap concat . mapM go
+
+  where
+    go :: (MonadIO m) => Block -> FilterT m [Block]
+    go block = do
+      let update xs = do mblk <- include xs
+                         case mblk of
+                           Nothing -> return [block]
+                           Just bs -> return bs
+      case block of
+        Plain xs -> update xs
+        Para  xs -> update xs
+        _        -> return [block]
+
+    include :: (MonadIO m) => [Inline] -> FilterT m (Maybe [Block])
+    include [Str s] = traverse parse (inclusionMarker s)
+    include _       = return Nothing
+
+    parse :: (MonadIO m) => FilePath -> FilterT m [Block]
+    parse f = do (Pandoc _ bs) <- processFile f
+                 return bs

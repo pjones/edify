@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 {-
 
 This file is part of the package edify. It is subject to the license
@@ -10,24 +12,34 @@ the LICENSE.md file.
 -}
 
 --------------------------------------------------------------------------------
-module Main (main) where
+module InclusionTest (tests) where
 
 --------------------------------------------------------------------------------
 -- Library imports.
+import Control.Monad (forM_)
 import Test.Tasty
+import Test.Tasty.HUnit
 
 --------------------------------------------------------------------------------
 -- Project imports.
-import qualified InclusionTest
-import qualified ManifestTest
-import qualified TimeCodeTest
-import qualified TimeFileTest
+import Text.Edify.Util.Inclusion
 
 --------------------------------------------------------------------------------
-main :: IO ()
-main = defaultMain $ testGroup "Tests"
-  [ ManifestTest.tests
-  , TimeCodeTest.tests
-  , TimeFileTest.tests
-  , InclusionTest.tests
+tests :: TestTree
+tests = testGroup "Inclusion"
+  [ testCase "Parsing" parsedSpec
   ]
+
+--------------------------------------------------------------------------------
+parsedSpec :: Assertion
+parsedSpec = do
+    forM_ inputs $ \(s, r) -> inclusionMarker s @?= r
+
+  where
+    inputs :: [(String, Maybe FilePath)]
+    inputs =
+      [ ("foobar",         Nothing)
+      , ("<<foo.md",       Nothing)
+      , ("<<(foo.md)",     Just "foo.md")
+      , ("\n<<(foo.md)\n", Just "foo.md")
+      ]

@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 {-
 
 This file is part of the package edify. It is subject to the license
@@ -10,24 +12,29 @@ the LICENSE.md file.
 -}
 
 --------------------------------------------------------------------------------
-module Main (main) where
+module Text.Edify.Util.Inclusion
+  ( inclusionMarker
+  ) where
 
 --------------------------------------------------------------------------------
 -- Library imports.
-import Test.Tasty
+import Text.Parsec
+import Text.Parsec.String
 
 --------------------------------------------------------------------------------
--- Project imports.
-import qualified InclusionTest
-import qualified ManifestTest
-import qualified TimeCodeTest
-import qualified TimeFileTest
+-- | Try to extract a file name from a string if it contains and
+-- inclusion marker.
+inclusionMarker :: String -> Maybe FilePath
+inclusionMarker s =
+  case runParser inclusionMarkerParser () "" s of
+    Left _  -> Nothing
+    Right f -> Just f
 
 --------------------------------------------------------------------------------
-main :: IO ()
-main = defaultMain $ testGroup "Tests"
-  [ ManifestTest.tests
-  , TimeCodeTest.tests
-  , TimeFileTest.tests
-  , InclusionTest.tests
-  ]
+-- | Parsec parser for inclusion markers.
+inclusionMarkerParser :: Parser FilePath
+inclusionMarkerParser =
+  spaces             *>
+  string "<<("       *>
+  many1 (noneOf ")") <*
+  char ')'

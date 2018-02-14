@@ -21,7 +21,6 @@ module Filter
 -- Library imports.
 import Data.Monoid ((<>))
 import Options.Applicative
-import System.Directory (getCurrentDirectory)
 import System.Exit (die)
 import Text.Pandoc.JSON (toJSONFilter)
 
@@ -44,11 +43,9 @@ options = Options <$> many (strOption promoteCls)
 --------------------------------------------------------------------------------
 -- | Pass options on to the filters.
 dispatch :: Options -> IO ()
-dispatch opts = do
-  pwd <- getCurrentDirectory
-
+dispatch opts =
   toJSONFilter $ \p -> do
-    fs  <- runFilterT pwd (filters opts p)
+    fs  <- runFilters opts p
     case fs of
-      Left e   -> die (show e)
+      Left e   -> die e
       Right p' -> return p'
