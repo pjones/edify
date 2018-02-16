@@ -11,11 +11,12 @@ mkDerivation {
   isExecutable = true;
   libraryHaskellDepends = [
     base containers data-default directory fgl filepath Graphalyze mtl
-    pandoc pandoc-types parsec process semigroups text
+    optparse-applicative pandoc pandoc-types parsec process semigroups
+    text
   ];
   executableHaskellDepends = [
-    base directory optparse-applicative pandoc pandoc-types text
-    transformers
+    base directory filepath optparse-applicative pandoc pandoc-types
+    text transformers
   ];
   testHaskellDepends = [ base containers tasty tasty-hunit text ];
   homepage = "https://github.com/pjones/edify";

@@ -66,7 +66,9 @@ insertFile x = return x
 readCodeFile :: (MonadIO m) => FilePath -> Maybe String -> FilterT m String
 readCodeFile path Nothing      = realpath path >>= liftIO . readFile
 readCodeFile path (Just token) = do
-  contents <- realpath path >>= liftIO . T.readFile
+  cleanPath <- realpath path
+  addDependency cleanPath
+  contents <- liftIO (T.readFile cleanPath)
 
   case narrow (Token (T.pack token))  contents of
     Right txt -> (return . T.unpack . removeIndent) txt
@@ -103,5 +105,7 @@ insertParsedFile = fmap concat . mapM go
     include _       = return Nothing
 
     parse :: (MonadIO m) => FilePath -> FilterT m [Block]
-    parse f = do (Pandoc _ bs) <- processFile f
+    parse f = do file <- realpath f
+                 addDependency file
+                 (Pandoc _ bs) <- processFile file
                  return bs

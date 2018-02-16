@@ -20,6 +20,8 @@ module Text.Edify.Filter.FilterT
   , pushfile
   , popfile
   , realpath
+  , addDependency
+  , getDependencies
   , processPandoc
   , processFile
   , runFilterT
@@ -63,6 +65,9 @@ data State = State
 
   , stateNodeID :: Int
     -- ^ The next node ID to include in the graph.
+
+  , stateDeps :: [FilePath]
+    -- ^ List of dependencies.
   }
 
 --------------------------------------------------------------------------------
@@ -116,6 +121,7 @@ pushfile file = do
       node      = (nodeID file' state, file')
       edge      = (fst x, fst node, ())
       state'    = State { stateInputFile = node :| (x:xs)
+                        , stateDeps = stateDeps state
                         , stateNodeID = stateNodeID state + 1
                         , stateInclusions = Graph.insEdge edge $
                                               Graph.insNode node $
@@ -155,6 +161,18 @@ popfile = do
 -- respect to the current filter directory (set with 'pushfile').
 realpath :: (MonadIO m) => FilePath -> FilterT m FilePath
 realpath = liftIO . canonicalizePath
+
+--------------------------------------------------------------------------------
+-- | Add a file to the list of dependencies.
+addDependency :: (MonadIO m) => FilePath -> FilterT m ()
+addDependency file = do
+  file' <- realpath file
+  modify (\s -> s {stateDeps = file' : stateDeps s})
+
+--------------------------------------------------------------------------------
+-- | Fetch the current list of dependencies.
+getDependencies :: (Monad m) => FilterT m [FilePath]
+getDependencies = gets stateDeps
 
 --------------------------------------------------------------------------------
 -- | Filter the given Pandoc tree.
@@ -201,11 +219,15 @@ runFilterT Nothing fs f = do
   runFilterT (Just cwd) fs f
 
 runFilterT (Just file) fs f = do
+    startDir <- liftIO getCurrentDirectory
     cleanFile <- liftIO (canonicalizePath file)
 
-    runExceptT $
-      flip evalStateT (initS cleanFile) $
-        runReaderT (unF f) initE
+    x <- runExceptT $
+           flip evalStateT (initS cleanFile) $
+             runReaderT (unF f) initE
+
+    liftIO (setCurrentDirectory startDir)
+    return x
 
   where
     initE :: Env m
@@ -218,4 +240,5 @@ runFilterT (Just file) fs f = do
       State { stateInputFile = pure node
             , stateInclusions = Graph.insNode node Graph.empty
             , stateNodeID = 2
+            , stateDeps = []
             }

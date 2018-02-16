@@ -10,28 +10,31 @@ the LICENSE.md file.
 -}
 
 --------------------------------------------------------------------------------
--- | Command to filter a Pandoc JSON stream.
-module Filter
-  ( Options
+-- | Options that control filters.
+module Text.Edify.Filter.Options
+  ( Options(..)
   , options
-  , dispatch
   ) where
 
 --------------------------------------------------------------------------------
--- Library imports.
-import System.Exit (die)
-import Text.Pandoc.JSON (toJSONFilter)
+-- Library Imports:
+import Data.Monoid ((<>))
+import Options.Applicative
 
 --------------------------------------------------------------------------------
--- Project imports.
-import Text.Edify.Filter
+data Options = Options
+  { divClassesToPromote :: [String]
+  , divClassesToRemove  :: [String]
+  }
 
 --------------------------------------------------------------------------------
--- | Pass options on to the filters.
-dispatch :: Options -> IO ()
-dispatch opts =
-  toJSONFilter $ \p -> do
-    fs  <- runFilters opts p
-    case fs of
-      Left e   -> die e
-      Right p' -> return p'
+-- | Parse filter options.
+options :: Parser Options
+options = Options <$> many (strOption promoteCls)
+                  <*> many (strOption removeCls)
+  where
+    promoteCls = long "promote" <> metavar "CLASS" <>
+                 help "Remove a class name from all divs"
+
+    removeCls  = long "remove" <> metavar "CLASS" <>
+                 help "Remove divs with the given class"

@@ -24,13 +24,15 @@ import Paths_edify (version)
 
 --------------------------------------------------------------------------------
 -- Commands from files in this directory.
+import qualified Build
 import qualified Filter
 import qualified Outline
 import qualified Stitch
 
 --------------------------------------------------------------------------------
 -- | Type for the command line parser.
-data Command = FilterC Filter.Options
+data Command = BuildC Build.Options
+             | FilterC Filter.Options
              | OutlineC Outline.Options
              | StitchC Stitch.Options
 
@@ -38,15 +40,18 @@ data Command = FilterC Filter.Options
 -- | Command line parser.
 parser :: Parser Command
 parser = subparser $ mconcat
-    [ command "filter"  (info (helper <*> filterCmd)  (progDesc filterDesc))
+    [ command "build"   (info (helper <*> buildCmd)   (progDesc buildDesc))
+    , command "filter"  (info (helper <*> filterCmd)  (progDesc filterDesc))
     , command "outline" (info (helper <*> outlineCmd) (progDesc outlineDesc))
     , command "stitch"  (info (helper <*> stitchCmd)  (progDesc stitchDesc))
     ]
   where
-    filterCmd   = FilterC  <$> Filter.options
-    outlineCmd  = OutlineC <$> Outline.options
-    stitchCmd   = StitchC  <$> Stitch.options
+    buildCmd   = BuildC   <$> Build.options
+    filterCmd  = FilterC  <$> Filter.options
+    outlineCmd = OutlineC <$> Outline.options
+    stitchCmd  = StitchC  <$> Stitch.options
 
+    buildDesc   = "Build an entire Markdown project"
     filterDesc  = "Filter Pandoc JSON content from STDIN to STDOUT"
     outlineDesc = "Print the heading outline of a Markdown document"
     stitchDesc  = "Stitch together files listed in FILE"
@@ -63,6 +68,7 @@ versionCmd = infoOption versionStr versionMod
 --------------------------------------------------------------------------------
 -- | Dispatch the subcommand to the correct function.
 dispatch :: Command -> IO ()
+dispatch (BuildC options)   = Build.dispatch options
 dispatch (FilterC options)  = Filter.dispatch options
 dispatch (OutlineC options) = Outline.dispatch options
 dispatch (StitchC options)  = Stitch.dispatch options
