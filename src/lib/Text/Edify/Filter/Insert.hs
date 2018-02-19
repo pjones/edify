@@ -20,11 +20,12 @@ module Text.Edify.Filter.Insert
 --------------------------------------------------------------------------------
 -- Library imports.
 import Control.Applicative
+import Control.Monad (unless)
 import Control.Monad.Except (throwError)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.Text as T
-import qualified Data.Text.IO as T
 import Data.Traversable (traverse)
+import System.Directory (doesFileExist)
 import Text.Pandoc.Definition
 
 --------------------------------------------------------------------------------
@@ -56,19 +57,29 @@ import Text.Edify.Util.Narrow
 insertFile :: (MonadIO m) => Block -> FilterT m Block
 insertFile cb@(CodeBlock (blkid, classes, alist) _) =
   case lookup "insert" alist <|> lookup "include" alist of
-    Just f  -> CodeBlock (blkid, classes, alist) <$> newtxt f
+    Just f  -> CodeBlock (blkid, classes, map update alist) <$> newtxt f
     Nothing -> return cb
+  -- FIXME: the newly created "inserted" attribute should be relative
+  -- to the output file.
   where newtxt f = readCodeFile f (lookup "token" alist)
+        update (k,v) = if k == "insert" || k == "include"
+                       then ("inserted", v)
+                       else (k, v)
 insertFile x = return x
 
 --------------------------------------------------------------------------------
 -- | Read a file with code in it, possibly narrowing to a token.
 readCodeFile :: (MonadIO m) => FilePath -> Maybe String -> FilterT m String
-readCodeFile path Nothing      = realpath path >>= liftIO . readFile
-readCodeFile path (Just token) = do
+readCodeFile path Nothing = do
+  verbose ("reading source code file: " ++ path)
   cleanPath <- realpath path
   addDependency cleanPath
-  contents <- liftIO (T.readFile cleanPath)
+  exist <- liftIO (doesFileExist cleanPath)
+  unless exist (throwError $ MissingFile cleanPath)
+  liftIO (readFile cleanPath)
+
+readCodeFile path (Just token) = do
+  contents <- T.pack <$> readCodeFile path Nothing
 
   case narrow (Token (T.pack token))  contents of
     Right txt -> (return . T.unpack . removeIndent) txt
@@ -86,26 +97,30 @@ readCodeFile path (Just token) = do
 --
 -- The line referencing @foo.md@ will be replaced with its contents.
 insertParsedFile :: (MonadIO m) => [Block] -> FilterT m [Block]
-insertParsedFile = fmap concat . mapM go
+insertParsedFile = fmap concat . mapM blk
 
   where
-    go :: (MonadIO m) => Block -> FilterT m [Block]
-    go block = do
-      let update xs = do mblk <- include xs
-                         case mblk of
-                           Nothing -> return [block]
-                           Just bs -> return bs
-      case block of
-        Plain xs -> update xs
-        Para  xs -> update xs
-        _        -> return [block]
+    blk :: (MonadIO m) => Block -> FilterT m [Block]
+    blk b@(Plain xs) = go b xs
+    blk b@(Para xs)  = go b xs
+    blk b            = return [b]
 
-    include :: (MonadIO m) => [Inline] -> FilterT m (Maybe [Block])
-    include [Str s] = traverse parse (inclusionMarker s)
+    go :: (MonadIO m) => Block -> [Inline] -> FilterT m [Block]
+    go b xs = do
+      ys <- sequence <$> mapM include (filter noBreaks xs)
+      return (maybe [b] concat ys)
+
+    noBreaks :: Inline -> Bool
+    noBreaks LineBreak = False
+    noBreaks _         = True
+
+    include :: (MonadIO m) => Inline -> FilterT m (Maybe [Block])
+    include (Str s) = traverse parse (inclusionMarker s)
     include _       = return Nothing
 
     parse :: (MonadIO m) => FilePath -> FilterT m [Block]
-    parse f = do file <- realpath f
+    parse f = do verbose ("including markdown file: " ++ f)
+                 file <- realpath f
                  addDependency file
                  (Pandoc _ bs) <- processFile file
                  return bs

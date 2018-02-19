@@ -20,7 +20,6 @@ module Text.Edify.Filter
 --------------------------------------------------------------------------------
 -- Library Imports:
 import Control.Monad.IO.Class (MonadIO)
-import Data.Bifunctor (bimap)
 import Text.Pandoc.Definition
 import Text.Pandoc.Generic
 import Text.Pandoc.Walk
@@ -36,9 +35,9 @@ import Text.Edify.Filter.Options (Options(..), options)
 --------------------------------------------------------------------------------
 filters :: (MonadIO m) => Options -> [Pandoc -> FilterT m Pandoc]
 filters opts =
-    [ bottomUpM insertParsedFile
-    , walkM insertFile
+    [ walkM insertFile
     , walkM executeBlock
+    , bottomUpM insertParsedFile
     , walkM (makeM (promoteDivByClass $ divClassesToPromote opts))
     , walkM (makeM (removeDivByClass  $ divClassesToRemove  opts))
     ]
@@ -53,6 +52,4 @@ runFilters :: (MonadIO m)
         -> Pandoc
         -> m (Either String Pandoc)
 
-runFilters opts doc = do
-    result <- runFilterT Nothing (filters opts) (processPandoc doc)
-    return (bimap show id result)
+runFilters opts doc = runFilterT Nothing (filters opts) (processPandoc doc)

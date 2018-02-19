@@ -27,6 +27,7 @@ import Text.Pandoc
 import Text.Edify.Filter.FilterT
 
 --------------------------------------------------------------------------------
+-- FIXME: change exec attribute after processing.
 executeBlock :: (MonadIO m) => Block -> FilterT m Block
 executeBlock cb@(CodeBlock (x, y, alist) input) =
   case lookup "exec" alist of

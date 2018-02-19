@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 
 {-
@@ -24,29 +25,33 @@ module Text.Edify.Filter.FilterT
   , getDependencies
   , processPandoc
   , processFile
+  , verbose
   , runFilterT
   ) where
 
 --------------------------------------------------------------------------------
 -- Library Imports:
-import Control.Monad (foldM, when)
+import Control.Monad (foldM, unless, when)
 import Control.Monad.Except (MonadError(..), ExceptT, runExceptT)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader (ReaderT, runReaderT)
 import Control.Monad.Reader.Class (MonadReader, asks)
 import Control.Monad.State.Class (MonadState, get, gets, put, modify)
 import Control.Monad.State.Lazy (StateT, evalStateT)
+import Data.Bifunctor (bimap)
 import qualified Data.Graph.Analysis.Algorithms.Common as Graph
 import qualified Data.Graph.Inductive.Graph as Graph
 import Data.Graph.Inductive.PatriciaTree (Gr)
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NonEmpty
 import System.FilePath ((</>), takeDirectory)
+import System.IO (hPutStrLn, stderr)
 import Text.Pandoc.Definition (Pandoc)
 
 import System.Directory ( canonicalizePath
                         , getCurrentDirectory
                         , setCurrentDirectory
+                        , doesFileExist
                         )
 
 --------------------------------------------------------------------------------
@@ -77,17 +82,20 @@ type Filters m = [Pandoc -> FilterT m Pandoc]
 -- | Internal reader environment.
 data Env m = Env
   { envFilters :: Filters m
+  , envVerbose :: Bool
   }
 
 --------------------------------------------------------------------------------
 -- | Filter errors.
 data Error = Error String
+           | MissingFile FilePath
            | EmptyPopfile FilePath
            | BadMarkdownFile FilePath String
            | CycleFound [FilePath]
 
 instance Show Error where
   show (Error s) = s
+  show (MissingFile f) = "file does not exist: " ++ f
   show (EmptyPopfile f) = "popfile called on single element stack " ++ f
   show (BadMarkdownFile f s ) = "failed to parse markdown file " ++ f ++ " :" ++ s
   show (CycleFound fs) = "inclusion cycle: " ++ show fs
@@ -95,12 +103,21 @@ instance Show Error where
 --------------------------------------------------------------------------------
 -- | Internal monad transformer for filters.
 newtype FilterT m a = FilterT
-  { unF :: ReaderT (Env m) (StateT State (ExceptT Error m)) a }
+  { unF :: ReaderT (Env m) (StateT State (ExceptT (FilePath, Error) m)) a }
   deriving ( Functor, Applicative, Monad, MonadIO
-           , MonadError Error
            , MonadReader (Env m)
            , MonadState State
            )
+
+--------------------------------------------------------------------------------
+instance (Monad m) => MonadError Error (FilterT m) where
+  throwError e = do
+    file <- gets (snd . NonEmpty.head . stateInputFile)
+    FilterT (throwError (file, e))
+
+  catchError (FilterT m) k =
+    let k' (_, e) = unF (k e)
+    in FilterT (catchError m k')
 
 --------------------------------------------------------------------------------
 -- | Fetch the current directory name (the name of the directory where
@@ -185,7 +202,10 @@ processPandoc doc = do
 -- | Load and filter the given Markdown file.
 processFile :: (MonadIO m) => FilePath -> FilterT m Pandoc
 processFile file = do
+  verbose ("processing markdown file: " ++ file)
   cleanFile <- realpath file
+  exist <- liftIO (doesFileExist cleanFile)
+  unless exist (throwError $ MissingFile cleanFile)
   markdown <- parseMarkdown cleanFile
 
   doc <- case markdown of
@@ -196,7 +216,20 @@ processFile file = do
   updated <- processPandoc doc
   popfile
 
+  verbose ("done processing markdown file: " ++ file)
   return updated
+
+--------------------------------------------------------------------------------
+-- | Emit verbose messages.  FIXME: add a flag to control this.
+verbose :: (MonadIO m) => String -> FilterT m ()
+verbose msg = do
+  enabled <- asks envVerbose
+  when enabled (liftIO $ hPutStrLn stderr msg)
+
+--------------------------------------------------------------------------------
+-- | Produce a helpful error message.
+errorMessage :: (FilePath, Error) -> String
+errorMessage (f, e) = "while processing file " ++ f ++ ": " ++ show e
 
 --------------------------------------------------------------------------------
 -- | Run a 'FilterT' operation.
@@ -211,7 +244,7 @@ runFilterT :: forall m a. (MonadIO m)
            -> FilterT m a
            -- ^ The filter operation to run.
 
-           -> m (Either Error a)
+           -> m (Either String a)
            -- ^ Results or error message.
 
 runFilterT Nothing fs f = do
@@ -227,12 +260,13 @@ runFilterT (Just file) fs f = do
              runReaderT (unF f) initE
 
     liftIO (setCurrentDirectory startDir)
-    return x
+    return (bimap errorMessage id x)
 
   where
     initE :: Env m
     initE =
       Env { envFilters = fs
+          , envVerbose = False
           }
 
     initS :: FilePath -> State

@@ -33,10 +33,7 @@ parse :: (MonadIO m, MonadFail m)
       -> m (Pandoc, [FilePath])
 parse opts file = do
   result <- Filter.runFilterT (Just file) (Filter.filters opts) go
-
-  case result of
-    Left e  -> Fail.fail ("while processing " ++ file ++ ": " ++ show e)
-    Right x -> return x
+  either Fail.fail return result
 
   where
     go = do
