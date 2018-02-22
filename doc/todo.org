@@ -1,0 +1,14 @@
+* To-do Items
+** Before Next Release
+*** TODO The =--top= Options Requires an Absolute Path                  :BUG:
+    - Giving it a relative path will fail
+*** TODO Support header ID's in file inclusion syntax
+    - Right now: =<<(foo.md)=
+    - Also support: =<<(foo.md#someID)= to only include that header
+      and content below it.
+*** TODO Support other generated files
+    - Inkscape: SVG -> PDF
+    - mscgen: MSC -> PDF
+*** TODO Merge metadata when doing file inclusions
+*** TODO Don't show output from =pdfcrop=
+*** TODO Allow picking template sytles/files from the command line

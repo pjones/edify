@@ -12,6 +12,7 @@ the LICENSE.md file.
 --------------------------------------------------------------------------------
 module Text.Edify.Filter
   ( Options(..)
+  , OutputFormat(..)
   , options
   , filters
   , runFilters
@@ -26,17 +27,20 @@ import Text.Pandoc.Walk
 
 --------------------------------------------------------------------------------
 -- Project Imports:
+import Text.Edify.Build.Template (OutputFormat(..))
 import Text.Edify.Filter.Div (promoteDivByClass, removeDivByClass)
 import Text.Edify.Filter.Exec (executeBlock)
-import Text.Edify.Filter.FilterT (FilterT, runFilterT, processPandoc)
+import Text.Edify.Filter.FilterT (FilterT, Env(..), runFilterT, processPandoc)
+import Text.Edify.Filter.Image (imageRewrite)
 import Text.Edify.Filter.Insert (insertFile, insertParsedFile)
-import Text.Edify.Filter.Options (Options(..), options)
+import Text.Edify.Filter.Options
 
 --------------------------------------------------------------------------------
 filters :: (MonadIO m) => Options -> [Pandoc -> FilterT m Pandoc]
 filters opts =
     [ walkM insertFile
     , walkM executeBlock
+    , walkM imageRewrite
     , bottomUpM insertParsedFile
     , walkM (makeM (promoteDivByClass $ divClassesToPromote opts))
     , walkM (makeM (removeDivByClass  $ divClassesToRemove  opts))
@@ -52,4 +56,14 @@ runFilters :: (MonadIO m)
         -> Pandoc
         -> m (Either String Pandoc)
 
-runFilters opts doc = runFilterT Nothing (filters opts) (processPandoc doc)
+runFilters opts doc =
+    runFilterT Nothing env (processPandoc doc)
+  where
+    env :: (MonadIO m) => Env m
+    env =
+      Env { envFilters = filters opts
+          , envOptions = opts
+          , envFormat  = Markdown
+          , envOutputDirectory = Nothing
+          , envProjectDirectory = Nothing
+          }

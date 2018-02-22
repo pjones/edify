@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 {-
 
 This file is part of the package edify. It is subject to the license
@@ -10,38 +12,46 @@ the LICENSE.md file.
 -}
 
 --------------------------------------------------------------------------------
+-- | Simple utility functions for parsing/generating Markdown via Pandoc.
 module Text.Edify.Build.Markdown
   ( parse
   , write
   ) where
 
 --------------------------------------------------------------------------------
-import Control.Monad.Fail (MonadFail)
-import qualified Control.Monad.Fail as Fail
+-- Library Imports:
 import Control.Monad.IO.Class (MonadIO)
 import Text.Pandoc.Definition (Pandoc)
 
 --------------------------------------------------------------------------------
-import qualified Text.Edify.Filter as Filter
+-- Project Imports:
+import Text.Edify.Build.Target (Target(..), filterEnvFromTarget)
 import qualified Text.Edify.Filter.FilterT as Filter
 import qualified Text.Edify.Util.Markdown as Markdown
 
 --------------------------------------------------------------------------------
-parse :: (MonadIO m, MonadFail m)
-      => Filter.Options
-      -> FilePath
-      -> m (Pandoc, [FilePath])
-parse opts file = do
-  result <- Filter.runFilterT (Just file) (Filter.filters opts) go
-  either Fail.fail return result
+-- | Parse a Markdown file and process it through the Edify filter
+-- system.  Information about which file to read and how to process it
+-- are taken from the 'Target' object.
+--
+-- Returns the 'Pandoc' object and a list files that the Markdown file
+-- depends on.
+parse :: (MonadIO m) => Target -> m (Pandoc, [FilePath])
+parse target@Target{..} = do
+  result <- Filter.runFilterT (Just targetInputFile) env go
+  either fail return result
 
   where
+    env :: (MonadIO m) => Filter.Env m
+    env = filterEnvFromTarget target
+
+    go :: (MonadIO m) => Filter.FilterT m (Pandoc, [FilePath])
     go = do
-      doc  <- Filter.processFile file
+      doc  <- Filter.processFile targetInputFile
       deps <- Filter.getDependencies
-      -- FIXME: find all image deps too
       return (doc, deps)
 
 --------------------------------------------------------------------------------
+-- | Generate a Markdown file from a 'Pandoc' object.
 write :: (MonadIO m) => Pandoc -> FilePath -> m ()
 write = Markdown.writeMarkdownFile

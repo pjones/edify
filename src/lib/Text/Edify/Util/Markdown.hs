@@ -25,6 +25,7 @@ import qualified Data.Set as Set
 import System.IO (writeFile)
 import Text.Pandoc.Definition (Pandoc)
 import Text.Pandoc.Readers.Markdown (readMarkdown)
+import qualified Text.Pandoc.Templates as Pandoc
 import Text.Pandoc.Writers.Markdown (writeMarkdown)
 
 import Text.Pandoc.Options ( ReaderOptions(..)
@@ -60,5 +61,11 @@ parseMarkdown path = do
 
 --------------------------------------------------------------------------------
 writeMarkdownFile :: (MonadIO m) => Pandoc -> FilePath -> m ()
-writeMarkdownFile doc file = liftIO $
-    writeFile file (writeMarkdown writerOptions doc)
+writeMarkdownFile doc file = liftIO $ do
+    template <- Pandoc.getDefaultTemplate Nothing "markdown"
+
+    let opts = writerOptions
+                 { writerTemplate = either (const Nothing) Just template
+                 }
+
+    writeFile file (writeMarkdown opts doc)

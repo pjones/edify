@@ -16,6 +16,7 @@ the LICENSE.md file.
 --------------------------------------------------------------------------------
 module Text.Edify.Filter.FilterT
   ( FilterT
+  , Env(..)
   , Error(..)
   , pwd
   , pushfile
@@ -56,6 +57,8 @@ import System.Directory ( canonicalizePath
 
 --------------------------------------------------------------------------------
 -- Project Imports:
+import Text.Edify.Build.Template (OutputFormat)
+import Text.Edify.Filter.Options (Options(..))
 import Text.Edify.Util.Markdown (parseMarkdown)
 
 --------------------------------------------------------------------------------
@@ -82,7 +85,10 @@ type Filters m = [Pandoc -> FilterT m Pandoc]
 -- | Internal reader environment.
 data Env m = Env
   { envFilters :: Filters m
-  , envVerbose :: Bool
+  , envOptions :: Options
+  , envFormat  :: OutputFormat
+  , envOutputDirectory :: Maybe FilePath
+  , envProjectDirectory :: Maybe FilePath
   }
 
 --------------------------------------------------------------------------------
@@ -182,9 +188,8 @@ realpath = liftIO . canonicalizePath
 --------------------------------------------------------------------------------
 -- | Add a file to the list of dependencies.
 addDependency :: (MonadIO m) => FilePath -> FilterT m ()
-addDependency file = do
-  file' <- realpath file
-  modify (\s -> s {stateDeps = file' : stateDeps s})
+addDependency file =
+  modify (\s -> s {stateDeps = file : stateDeps s})
 
 --------------------------------------------------------------------------------
 -- | Fetch the current list of dependencies.
@@ -220,10 +225,10 @@ processFile file = do
   return updated
 
 --------------------------------------------------------------------------------
--- | Emit verbose messages.  FIXME: add a flag to control this.
+-- | Emit verbose messages.
 verbose :: (MonadIO m) => String -> FilterT m ()
 verbose msg = do
-  enabled <- asks envVerbose
+  enabled <- asks (outputVerbose . envOptions)
   when enabled (liftIO $ hPutStrLn stderr msg)
 
 --------------------------------------------------------------------------------
@@ -238,8 +243,8 @@ runFilterT :: forall m a. (MonadIO m)
            -- ^ The name of the input file.  If processing STDIN
            -- then set this to 'Nothing'.
 
-           -> Filters m
-           -- ^ List of filters to apply to processed files.
+           -> Env m
+           -- ^ Reader environment.
 
            -> FilterT m a
            -- ^ The filter operation to run.
@@ -251,23 +256,27 @@ runFilterT Nothing fs f = do
   cwd <- (</> "stdin") <$> liftIO getCurrentDirectory
   runFilterT (Just cwd) fs f
 
-runFilterT (Just file) fs f = do
+runFilterT (Just file) env f = do
     startDir <- liftIO getCurrentDirectory
     cleanFile <- liftIO (canonicalizePath file)
 
     x <- runExceptT $
            flip evalStateT (initS cleanFile) $
-             runReaderT (unF f) initE
+             runReaderT (unF f) env
 
     liftIO (setCurrentDirectory startDir)
     return (bimap errorMessage id x)
 
   where
-    initE :: Env m
-    initE =
-      Env { envFilters = fs
-          , envVerbose = False
-          }
+    -- action :: (Monad m) => FilterT m ()
+    -- action = do
+    --   odir <- asks (outputDirectory . envOptions)
+    --   unless (isAbsolute odir) $ throwError . Error $
+    --     "output directory isn't absolute"
+    --
+    --   bdir <- asks (baseDirectory . envOptions)
+    --   unless (isAbsolute bdir) $ throwError . Error $
+    --     "base directory isn't absolute"
 
     initS :: FilePath -> State
     initS path = let node = (1, path) in

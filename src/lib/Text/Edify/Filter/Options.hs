@@ -25,16 +25,25 @@ import Options.Applicative
 data Options = Options
   { divClassesToPromote :: [String]
   , divClassesToRemove  :: [String]
+  , outputVerbose       :: Bool
   }
 
 --------------------------------------------------------------------------------
 -- | Parse filter options.
 options :: Parser Options
-options = Options <$> many (strOption promoteCls)
-                  <*> many (strOption removeCls)
+options =
+  Options <$> many (strOption promoteCls)
+          <*> many (strOption removeCls)
+          <*> switch verbose
   where
-    promoteCls = long "promote" <> metavar "CLASS" <>
-                 help "Remove a class name from all divs"
+    promoteCls =
+      long "promote" <> metavar "CLASS" <>
+      help "Remove a class name from all divs"
 
-    removeCls  = long "remove" <> metavar "CLASS" <>
-                 help "Remove divs with the given class"
+    removeCls =
+      long "remove" <> metavar "CLASS" <>
+      help "Remove divs with the given class"
+
+    verbose =
+      long "verbose" <>
+      help "Enable verbose output"

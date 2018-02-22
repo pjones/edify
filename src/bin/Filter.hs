@@ -29,9 +29,14 @@ import Text.Edify.Filter
 --------------------------------------------------------------------------------
 -- | Pass options on to the filters.
 dispatch :: Options -> IO ()
-dispatch opts =
+dispatch opts = do
+  let opts' = Options { divClassesToPromote = divClassesToPromote opts
+                      , divClassesToRemove = divClassesToRemove opts
+                      , outputVerbose = outputVerbose opts
+                      }
+
   toJSONFilter $ \p -> do
-    fs  <- runFilters opts p
+    fs  <- runFilters opts' p
     case fs of
       Left e   -> die e
       Right p' -> return p'

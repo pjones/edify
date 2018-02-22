@@ -12,32 +12,35 @@ the LICENSE.md file.
 -}
 
 --------------------------------------------------------------------------------
--- | Build a complete Markdown project.
-module Build
-  ( Options
-  , options
-  , dispatch
+-- | Build rules for other generated files such as diagrams.
+module Text.Edify.Build.Rules
+  ( rules
   ) where
 
 --------------------------------------------------------------------------------
 -- Library Imports:
-import Development.Shake (ShakeOptions(..), shake, shakeOptions)
+import Development.Shake ((%>), need, cmd, unit)
 import qualified Development.Shake as Shake
+import System.FilePath
 
 --------------------------------------------------------------------------------
 -- Project Imports:
-import Text.Edify.Build.Options (Options(..), options)
-import qualified Text.Edify.Build.Plan as Build
-import qualified Text.Edify.Build.Rules as Build
-import Text.Edify.Build.Target
+import Text.Edify.Build.Options (Options(..))
 
 --------------------------------------------------------------------------------
--- | Pass options on to the filters.
-dispatch :: Options -> IO ()
-dispatch opts = do
-  targets <- targetsFromOptions opts
+-- | Returns a 'Shake.Rules' value with instructions on how to build
+-- various dependencies used in Markdown files.
+rules :: Options -> Shake.Rules ()
+rules Options{..} = do
 
-  shake shakeOptions { shakeFiles = optionsOutputDirectory opts
-                     , shakeVerbosity = Shake.Normal
-                     } $
-    Build.rules opts >> mapM_ Build.plan targets
+  ------------------------------------------------------------------------------
+  -- How to build Graphviz DOT files:
+  "//*.dot.pdf" %> \out -> do
+    let src = makeRelative optionsOutputDirectory (dropExtension out)
+        ps  = out -<.> ".ps"
+        raw = out -<.> ".rawpdf"
+
+    need [ src ]
+    unit $ cmd "dot" ["-Tps", "-o", ps, src]
+    unit $ cmd "ps2pdf" [ps, raw]
+    unit $ cmd "pdfcrop" [raw, out]
