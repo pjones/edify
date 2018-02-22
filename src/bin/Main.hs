@@ -16,7 +16,9 @@ module Main (main) where
 -- Library imports.
 import           Data.Monoid
 import           Data.Version (showVersion)
+import qualified GHC.IO.Encoding as E
 import           Options.Applicative
+
 
 --------------------------------------------------------------------------------
 -- Project imports.
@@ -75,5 +77,8 @@ dispatch (StitchC options)  = Stitch.dispatch options
 
 --------------------------------------------------------------------------------
 main :: IO ()
-main = dispatch =<< execParser opts
-  where opts = info (helper <*> versionCmd <*> parser) mempty
+main = do
+    E.setLocaleEncoding E.utf8
+    dispatch =<< execParser opts
+  where
+    opts = info (helper <*> versionCmd <*> parser) mempty
