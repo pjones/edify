@@ -34,9 +34,9 @@ rules :: Options -> Shake.Rules ()
 rules Options{..} = do
 
   ------------------------------------------------------------------------------
-  -- How to build Graphviz DOT files:
+  -- Graphviz DOT -> PDF:
   "//*.dot.pdf" %> \out -> do
-    let src = makeRelative optionsOutputDirectory (dropExtension out)
+    let src = srcPath out
         ps  = out -<.> ".ps"
         raw = out -<.> ".rawpdf"
 
@@ -44,3 +44,21 @@ rules Options{..} = do
     unit $ cmd "dot" ["-Tps", "-o", ps, src]
     unit $ cmd "ps2pdf" [ps, raw]
     unit $ cmd "pdfcrop" [raw, out]
+
+
+  ------------------------------------------------------------------------------
+  -- SVG -> PDF:
+  "//*.svg.pdf" %> \out -> do
+    let src = srcPath out
+
+    need [ src ]
+    cmd "inkscape" [ "--without-gui"
+                   , "--export-area-drawing"
+                   , "--export-pdf"
+                   , out
+                   , src
+                   ]
+
+  where
+    srcPath :: FilePath -> FilePath
+    srcPath = makeRelative optionsOutputDirectory . dropExtension

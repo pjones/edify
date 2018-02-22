@@ -12,3 +12,12 @@
 *** TODO Merge metadata when doing file inclusions
 *** TODO Don't show output from =pdfcrop=
 *** TODO Allow picking template sytles/files from the command line
+*** TODO Paths in YAML metadata need to be converted
+    - For example: =bibliography: ../metadata/citations.bib= is
+      relative to the markdown file but when pandoc runs it can't find
+      that file.
+*** TODO Reference links in one file don't affect other files
+    - Trying to put all reference links into a separate file doesn't
+      work.  Pandoc marks the links as missing during file inclusion.
+*** TODO Citation links don't seem to work
+    - Links for a citation to the bibliography don't show up.
