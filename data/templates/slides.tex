@@ -14,9 +14,7 @@
 
 % ===============================================================================
 % Beamer settings:
-\usetheme{default}
-\useoutertheme{seclines}
-\usecolortheme{seahorse}
+\usetheme{Boadilla}
 
 \definecolor{devalot-blue}{HTML}{065078}
 \definecolor{devalot-ltblue}{HTML}{C8DAE1}
@@ -141,12 +139,7 @@ $if(subtitle)$
 \subtitle{$subtitle$}
 $endif$
 $if(author)$
-\author[$for(author)$$author.name$ \& $endfor$]
-{%
-  \texorpdfstring{
-  }
-  {$for(author)$$author.name$ \& $endfor$}
-}
+\author{$for(author)$$author.name$$sep$ \and $endfor$}
 $endif$
 
 $if(natbib)$
