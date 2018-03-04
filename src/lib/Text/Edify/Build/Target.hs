@@ -121,4 +121,5 @@ pandocVariables = do
   return [ ("logoemailpdf",   imgdir </> "email.pdf")
          , ("logotwitterpdf", imgdir </> "twitter.pdf")
          , ("logodevalotpdf", imgdir </> "devalot.pdf")
+         , ("graphics",       "true")
          ]
