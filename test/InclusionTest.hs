@@ -36,10 +36,11 @@ parsedSpec = do
     forM_ inputs $ \(s, r) -> inclusionMarker s @?= r
 
   where
-    inputs :: [(String, Maybe FilePath)]
+    inputs :: [(String, Maybe FileRef)]
     inputs =
       [ ("foobar",         Nothing)
       , ("<<foo.md",       Nothing)
-      , ("<<(foo.md)",     Just "foo.md")
-      , ("\n<<(foo.md)\n", Just "foo.md")
+      , ("<<(foo.md)",     Just (FileRef "foo.md" Nothing))
+      , ("\n<<(foo.md)\n", Just (FileRef "foo.md" Nothing))
+      , ("<<(foo.md#abc)", Just (FileRef "foo.md" (Just "abc")))
       ]

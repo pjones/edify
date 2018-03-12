@@ -17,6 +17,7 @@ module Text.Edify.Util.Narrow
        , Token   (..)
        , narrow
        , narrowToToken
+       , narrowToHeader
        ) where
 
 --------------------------------------------------------------------------------
@@ -24,6 +25,7 @@ module Text.Edify.Util.Narrow
 import Control.Monad
 import Data.Text (Text)
 import qualified Data.Text as T
+import Text.Pandoc.Definition (Block(..))
 import Text.Parsec hiding (token)
 import Text.Parsec.Text
 
@@ -68,3 +70,42 @@ narrowP (Markers start end) (Token token) = do
   -- skip the entire line that the ending marker is on.
   text <- manyTill anyChar (try ending) <?> "closing marker"
   return (T.dropWhileEnd (/= '\n') . T.pack $ text)
+
+--------------------------------------------------------------------------------
+-- | State for searching a document, looking for all content falling
+-- under a header.
+data NarrowState = Found [Block] | Searching Block [Block]
+
+--------------------------------------------------------------------------------
+-- | Restrict the given list of blocks to only include those that fall
+-- under the header with the given ID.
+narrowToHeader :: String -> [Block] -> [Block]
+narrowToHeader _      [] = []
+narrowToHeader headid xs =
+  case start xs of
+    []     -> []
+    h:rest -> case end h rest of
+                Found bs       -> h:bs
+                Searching _ bs -> h:bs
+
+  where
+    start :: [Block] -> [Block]
+    start = dropWhile (not . isMatch)
+
+    end :: Block -> [Block] -> NarrowState
+    end h@Header{} bs = foldl collect (Searching h []) bs
+    end h          _  = Searching h []
+
+    isMatch :: Block -> Bool
+    isMatch (Header _ (sid, _, _) _) = sid == headid
+    isMatch _                        = False
+
+    collect :: NarrowState -> Block -> NarrowState
+    collect state@(Found _)  _   = state
+    collect (Searching h bs) blk = if below h blk
+                                     then Searching h (bs ++ [blk])
+                                     else Found bs
+
+    below :: Block -> Block -> Bool
+    below (Header n _ _) (Header n' _ _) = n' > n
+    below _ _ = True

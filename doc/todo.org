@@ -2,10 +2,6 @@
 ** Before Next Release
 *** TODO The =--top= Options Requires an Absolute Path                  :BUG:
     - Giving it a relative path will fail
-*** TODO Support header ID's in file inclusion syntax
-    - Right now: =<<(foo.md)=
-    - Also support: =<<(foo.md#someID)= to only include that header
-      and content below it.
 *** TODO Support other generated files
     - Inkscape: SVG -> PDF
     - mscgen: MSC -> PDF
@@ -21,3 +17,8 @@
       work.  Pandoc marks the links as missing during file inclusion.
 *** TODO Citation links don't seem to work
     - Links for a citation to the bibliography don't show up.
+*** DONE Support header ID's in file inclusion syntax
+    CLOSED: [2018-03-11 Sun 17:11]
+    - Right now: =<<(foo.md)=
+    - Also support: =<<(foo.md#someID)= to only include that header
+      and content below it.

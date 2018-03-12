@@ -118,9 +118,13 @@ insertParsedFile = fmap concat . mapM blk
     include (Str s) = traverse parse (inclusionMarker s)
     include _       = return Nothing
 
-    parse :: (MonadIO m) => FilePath -> FilterT m [Block]
-    parse f = do verbose ("including markdown file: " ++ f)
-                 file <- realpath f
-                 addDependency file
-                 (Pandoc _ bs) <- processFile file
-                 return bs
+    parse :: (MonadIO m) => FileRef -> FilterT m [Block]
+    parse (FileRef f hid) = do
+      verbose ("including markdown file: " ++ f)
+      file <- realpath f
+      addDependency file
+      (Pandoc _ bs) <- processFile file
+
+      case hid of
+        Nothing  -> return bs
+        Just id' -> return (narrowToHeader id' bs)
