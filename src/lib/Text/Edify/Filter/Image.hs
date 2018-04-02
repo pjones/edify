@@ -100,11 +100,13 @@ imageExtension ext Markdown = Just ext
 -- For PDF, it's best to use a vector format.  Another PDF works.
 imageExtension ".dot" PDF    = Just ".dot.pdf"
 imageExtension ".svg" PDF    = Just ".svg.pdf"
+imageExtension ".tex" PDF    = Just ".tex.pdf"
 imageExtension ".msc" PDF    = Just ".msc.pdf"
 imageExtension _      PDF    = Nothing
 
 -- For HTML, PNG works pretty well these days.
 imageExtension ".dot" HTML   = Just ".dot.png"
+imageExtension ".tex" HTML   = Just ".tex.png"
 imageExtension ".svg" HTML   = Just ".svg.png"
 imageExtension ".msc" HTML   = Just ".msc.png"
 imageExtension _      HTML   = Nothing

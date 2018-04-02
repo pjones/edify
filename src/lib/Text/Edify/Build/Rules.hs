@@ -19,8 +19,10 @@ module Text.Edify.Build.Rules
 
 --------------------------------------------------------------------------------
 -- Library Imports:
+import Control.Monad.IO.Class (liftIO)
 import Development.Shake ((%>), need, cmd, unit)
 import qualified Development.Shake as Shake
+import System.Directory (renameFile)
 import System.FilePath
 
 --------------------------------------------------------------------------------
@@ -58,6 +60,22 @@ rules Options{..} = do
                    , out
                    , src
                    ]
+
+  ------------------------------------------------------------------------------
+  -- TEX -> PDF:
+  "//*.tex.pdf" %> \out -> do
+    let src  = srcPath out
+        out' = dropExtension out -<.> ".pdf"
+
+    need [ src ]
+
+    unit $ cmd "latexmk" [ "-norc"
+                         , "-quiet"
+                         , "-pdf"
+                         , "-outdir=" ++ takeDirectory out
+                         , src
+                         ]
+    liftIO (renameFile out' out)
 
   where
     srcPath :: FilePath -> FilePath
