@@ -44,9 +44,8 @@ rules Options{..} = do
 
     need [ src ]
     unit $ cmd "dot" ["-Tps", "-o", ps, src]
-    unit $ cmd "ps2pdf" [ps, raw]
-    unit $ cmd "pdfcrop" [raw, out]
-
+    unit $ cmd (Shake.EchoStdout False) "ps2pdf"  [ps, raw]
+    unit $ cmd (Shake.EchoStdout False) "pdfcrop" [raw, out]
 
   ------------------------------------------------------------------------------
   -- SVG -> PDF:
@@ -54,12 +53,12 @@ rules Options{..} = do
     let src = srcPath out
 
     need [ src ]
-    cmd "inkscape" [ "--without-gui"
-                   , "--export-area-drawing"
-                   , "--export-pdf"
-                   , out
-                   , src
-                   ]
+    unit $ cmd "inkscape" [ "--without-gui"
+                          , "--export-area-drawing"
+                          , "--export-pdf"
+                          , out
+                          , src
+                          ]
 
   ------------------------------------------------------------------------------
   -- TEX -> PDF:
@@ -76,6 +75,18 @@ rules Options{..} = do
                          , src
                          ]
     liftIO (renameFile out' out)
+
+  ------------------------------------------------------------------------------
+  -- MSC -> PDF:
+  "//*.msc.pdf" %> \out -> do
+    let src = srcPath out
+        eps = out -<.> ".eps"
+        raw = out -<.> ".rawpdf"
+
+    need [ src ]
+    unit $ cmd "mscgen"  ["-T", "eps", "-i", src, "-o", eps]
+    unit $ cmd (Shake.EchoStdout False) "ps2pdf"  [eps, raw]
+    unit $ cmd (Shake.EchoStdout False) "pdfcrop" [raw, out]
 
   where
     srcPath :: FilePath -> FilePath
