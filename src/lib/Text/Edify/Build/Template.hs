@@ -45,7 +45,7 @@ data OutputFormat = Markdown | PDF | HTML
 
 --------------------------------------------------------------------------------
 -- | What style of document to generate.
-data TemplateStyle = Handout | Slides
+data TemplateStyle = Handout | Slides | Outline
 
 --------------------------------------------------------------------------------
 -- | Enough information to know what kind of output file to generate.
@@ -79,6 +79,7 @@ filterOptionsForTemplate style =
   case style of
     Handout -> removeDivs ["slides-only"]
     Slides  -> removeDivs ["notes"] . promoteDivs ["slides-only"]
+    Outline -> removeDivs ["slides-only"] . removeDivs ["notes"]
 
   where
     removeDivs xs o =
@@ -97,6 +98,7 @@ generateIntermediateFileName style file =
    (file -<.>) $ case style of
                    Handout -> ".handout"
                    Slides  -> ".slides"
+                   Outline -> ".outline"
 
 --------------------------------------------------------------------------------
 -- | Expand the information in a 'Template'.
@@ -109,6 +111,7 @@ resolveTemplate (BuiltinTemplate PDF style) = do
   return $ case style of
              Handout -> (Just (dir </> "handout.tex"), PDF, style)
              Slides  -> (Just (dir </> "slides.tex" ), PDF, style)
+             Outline -> (Just (dir </> "handout.tex"), PDF, style)
 
 resolveTemplate (BuiltinTemplate format style) =
   return (Nothing, format, style)

@@ -60,6 +60,7 @@ options = Options <$> Filter.options
                   <*> optional (option str projectDirOpt)
                   <*> pure [ BuiltinTemplate PDF Handout
                            , BuiltinTemplate PDF Slides
+                           , BuiltinTemplate PDF Outline
                            ]
                   <*> many (argument str (metavar "FILE"))
 

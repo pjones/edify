@@ -21,21 +21,22 @@ module Outline
 
 --------------------------------------------------------------------------------
 -- Library imports.
-import           Control.Monad
-import           Control.Monad.IO.Class (liftIO)
-import           Control.Monad.Trans.Maybe
-import           Data.Monoid
+import Control.Monad
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Trans.Maybe
+import Data.Monoid
 import qualified Data.Text as T
-import           Options.Applicative
-import           Text.Pandoc.Options
-import           Text.Pandoc.Readers.Markdown
+import Options.Applicative
+import Text.Pandoc.Definition (Pandoc(..))
+import Text.Pandoc.Options
+import Text.Pandoc.Readers.Markdown
 
 --------------------------------------------------------------------------------
 -- Project imports.
 import qualified Text.Edify.File.Time as ET
-import           Text.Edify.Time.TimeCode
-import           Text.Edify.Time.TimeTree
-import           Text.Edify.Util.HeaderTree
+import Text.Edify.Time.TimeCode
+import Text.Edify.Time.TimeTree
+import Text.Edify.Util.HeaderTree
 
 --------------------------------------------------------------------------------
 -- | Options for the outline command.
@@ -69,10 +70,10 @@ dispatch Options{..} = do
     Just tree -> timeOutline tree
 
   where
-    timeCodeOptions :: [[HeaderTree] -> MaybeT IO [TimeTree]]
+    timeCodeOptions :: [[HeaderTree String] -> MaybeT IO [TimeTree String]]
     timeCodeOptions = [usingBoth, usingAttr, usingMap]
 
-    usingBoth :: [HeaderTree] -> MaybeT IO [TimeTree]
+    usingBoth :: [HeaderTree String] -> MaybeT IO [TimeTree String]
     usingBoth hs = do
       key   <- maybe mzero return timeKey
       mFile <- maybe mzero return timeFile
@@ -82,12 +83,12 @@ dispatch Options{..} = do
         dict <- dictE
         timeTreeFromMapOrAttr dict key hs
 
-    usingAttr :: [HeaderTree] -> MaybeT IO [TimeTree]
+    usingAttr :: [HeaderTree String] -> MaybeT IO [TimeTree String]
     usingAttr hs = do
       key <- maybe mzero return timeKey
       either (liftIO . fail) return $ timeTreeFromAttr key hs
 
-    usingMap :: [HeaderTree] -> MaybeT IO [TimeTree]
+    usingMap :: [HeaderTree String] -> MaybeT IO [TimeTree String]
     usingMap hs = do
       mFile <- maybe mzero return timeFile
       m     <- liftIO (ET.parseFile mFile)
@@ -100,13 +101,13 @@ content file = case file of
   Just f  -> readFile f
 
 --------------------------------------------------------------------------------
-headers :: String -> [HeaderTree]
+headers :: String -> [HeaderTree String]
 headers path = case readMarkdown def path of
-  Left _  -> []
-  Right x -> headerTree x
+  Left _             -> []
+  Right (Pandoc _ x) -> headerTree x
 
 --------------------------------------------------------------------------------
-simpleOutline :: Int -> [HeaderTree] -> IO ()
+simpleOutline :: Int -> [HeaderTree String] -> IO ()
 simpleOutline _ []                     = return ()
 simpleOutline n (HeaderTree h hs:xs) = do
   putStrLn (replicate n ' ' ++ title h)
@@ -114,14 +115,14 @@ simpleOutline n (HeaderTree h hs:xs) = do
   simpleOutline n xs
 
 --------------------------------------------------------------------------------
-timeOutline :: [TimeTree] -> IO ()
+timeOutline :: [TimeTree String] -> IO ()
 timeOutline [] = return ()
 timeOutline ts = do
   topLevelTotal <- sum <$> mapM (\t -> printTree 0 t <* putStr "\n") ts
   printTitle 0 "[TOTAL]" '-' topLevelTotal
 
 --------------------------------------------------------------------------------
-printTree :: Int -> TimeTree -> IO TimeCode
+printTree :: Int -> TimeTree String -> IO TimeCode
 printTree n (TimeTree hi timeCode hs) = do
     printTitle n (title hi) '.' timeCode
     mapM_ (printTree (n+2)) hs

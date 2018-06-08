@@ -55,6 +55,8 @@ library
       Text.Edify.Filter.Insert
       Text.Edify.Filter.Options
 
+    Text.Edify.Rewrite.Outline
+
     Text.Edify.Time.TimeCode
     Text.Edify.Time.TimeTree
 

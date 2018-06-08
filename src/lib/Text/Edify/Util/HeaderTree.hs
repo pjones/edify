@@ -15,6 +15,9 @@ module Text.Edify.Util.HeaderTree
        ( HeaderInfo (..)
        , HeaderTree (..)
        , headerTree
+       , headerTree'
+       , listHeaders
+       , onlyHeaders
        ) where
 
 --------------------------------------------------------------------------------
@@ -26,27 +29,60 @@ import Text.Pandoc.Writers.Markdown
 
 --------------------------------------------------------------------------------
 -- | Information about a single header.
-data HeaderInfo = HeaderInfo
+data HeaderInfo a = HeaderInfo
   { level :: Int
   , attrs :: Attr
-  , title :: String
+  , title :: a
   } deriving Show
 
 --------------------------------------------------------------------------------
 -- | A recursive, tree-like structure of headers.
-data HeaderTree = HeaderTree HeaderInfo [HeaderTree] deriving Show
+data HeaderTree a = HeaderTree (HeaderInfo a) [HeaderTree a] deriving Show
 
 --------------------------------------------------------------------------------
--- | Turn a @Pandoc@ into a list of @HeaderTree@ values.  The list
--- forms a hierarchy were the elements roots of the tree.
-headerTree :: Pandoc -> [HeaderTree]
-headerTree = go . map (\h -> HeaderTree h []) . onlyHeaders
+-- | Turn a @Pandoc@ body into a list of @HeaderTree@ values.  The
+-- list forms a hierarchy were the elements are roots of the tree.
+renderHeaders :: HeaderTree [Inline] -> HeaderTree String
+renderHeaders (HeaderTree info children) =
+    HeaderTree (update info) (map renderHeaders children)
   where
-    go :: [HeaderTree] -> [HeaderTree]
+    update :: HeaderInfo [Inline] -> HeaderInfo String
+    update hi = hi { title = render (title hi) }
+
+    render :: [Inline] -> String
+    render content = writeMarkdown def (Pandoc nullMeta [Plain content])
+
+--------------------------------------------------------------------------------
+listHeaders :: (HeaderInfo [Inline]  -> ListAttributes)
+            -> [HeaderTree [Inline]] -> Block
+listHeaders lattrs hts = go hts
+  where
+    go :: [HeaderTree [Inline]] -> Block
+    go hts' = OrderedList (mklattrs hts') (map items hts')
+
+    mklattrs :: [HeaderTree [Inline]] -> ListAttributes
+    mklattrs [] = (1, DefaultStyle, DefaultDelim)
+    mklattrs ((HeaderTree info _):_) = lattrs info
+
+    items :: HeaderTree [Inline] -> [Block]
+    items (HeaderTree info children) = [ Plain (title info)
+                                       , listHeaders lattrs children
+                                       ]
+
+--------------------------------------------------------------------------------
+headerTree :: [Block] -> [HeaderTree String]
+headerTree = map renderHeaders . headerTree' onlyHeaders
+
+--------------------------------------------------------------------------------
+headerTree' :: (Block -> [HeaderInfo a]) -> [Block] -> [HeaderTree a]
+headerTree' f = go . map (\h -> HeaderTree h []) . query f
+
+  where
+    go :: [HeaderTree a] -> [HeaderTree a]
     go [] = []
     go (x:xs) = let (y,ys) = place x xs in y:go ys
 
-    place :: HeaderTree -> [HeaderTree] -> (HeaderTree, [HeaderTree])
+    place :: HeaderTree a -> [HeaderTree a] -> (HeaderTree a, [HeaderTree a])
     place h [] = (h, [])
     place (HeaderTree h hs) (x@(HeaderTree h' _):xs)
       | level h' > level h = let (y,ys) = place x xs
@@ -54,15 +90,6 @@ headerTree = go . map (\h -> HeaderTree h []) . onlyHeaders
       | otherwise          = (HeaderTree h hs, x:xs)
 
 --------------------------------------------------------------------------------
-onlyHeaders :: Pandoc -> [HeaderInfo]
-onlyHeaders = query go
-  where
-    go :: Block -> [HeaderInfo]
-    go (Header n a content) = [HeaderInfo n a (rendered content)]
-    go _                    = []
-
-    rendered :: [Inline] -> String
-    rendered content = writeMarkdown options (Pandoc nullMeta [Plain content])
-
-    options ::  WriterOptions
-    options = def
+onlyHeaders :: Block -> [HeaderInfo [Inline]]
+onlyHeaders (Header n a c) = [HeaderInfo n a c]
+onlyHeaders _              = [ ]

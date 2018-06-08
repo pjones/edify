@@ -21,12 +21,15 @@ module Text.Edify.Build.Markdown
 --------------------------------------------------------------------------------
 -- Library Imports:
 import Control.Monad.IO.Class (MonadIO)
+import Data.Default (def)
 import Text.Pandoc.Definition (Pandoc)
 
 --------------------------------------------------------------------------------
 -- Project Imports:
 import Text.Edify.Build.Target (Target(..), filterEnvFromTarget)
+import Text.Edify.Build.Template (TemplateStyle(..))
 import qualified Text.Edify.Filter.FilterT as Filter
+import qualified Text.Edify.Rewrite.Outline as Rewrite
 import qualified Text.Edify.Util.Markdown as Markdown
 
 --------------------------------------------------------------------------------
@@ -49,7 +52,11 @@ parse target@Target{..} = do
     go = do
       doc  <- Filter.processFile targetInputFile
       deps <- Filter.getDependencies
-      return (doc, deps)
+
+      case targetTemplateStyle of
+        Handout -> return (doc, deps)
+        Slides  -> return (doc, deps)
+        Outline -> return (Rewrite.outline def doc, deps)
 
 --------------------------------------------------------------------------------
 -- | Generate a Markdown file from a 'Pandoc' object.
