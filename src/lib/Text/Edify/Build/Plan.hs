@@ -42,7 +42,10 @@ plan target@Target{..} = do
   targetIntermediateFile %> \out -> do
     (doc, deps) <- Markdown.parse target
     need (targetInputFile:deps)
-    Markdown.write doc out
+    err <- Markdown.write doc out
+    case err of
+      Nothing -> return ()
+      Just s  -> fail s
 
 --------------------------------------------------------------------------------
 -- | Calculate all of the flags to send to the @pandoc@ executable.
@@ -57,7 +60,6 @@ pandocArgsForTarget Target{..} out =
     basic =
       [ "--from=markdown"
       , "--filter=pandoc-citeproc"
-      , "--smart"
       , "--output", out
       ] ++ templateFile ++ variables
 

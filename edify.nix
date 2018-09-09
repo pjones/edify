@@ -1,7 +1,7 @@
 { mkDerivation, attoparsec, base, containers, data-default
-, directory, fgl, filepath, Graphalyze, mtl, network-uri
-, optparse-applicative, pandoc, pandoc-types, parsec, process
-, semigroups, shake, stdenv, tasty, tasty-hunit, text, transformers
+, directory, fgl, filepath, mtl, network-uri, optparse-applicative
+, pandoc, pandoc-types, parsec, process, semigroups, shake, stdenv
+, tasty, tasty-hunit, text, transformers
 }:
 mkDerivation {
   pname = "edify";
@@ -11,9 +11,9 @@ mkDerivation {
   isExecutable = true;
   enableSeparateDataOutput = true;
   libraryHaskellDepends = [
-    attoparsec base containers data-default directory fgl filepath
-    Graphalyze mtl network-uri optparse-applicative pandoc pandoc-types
-    parsec process semigroups shake text
+    attoparsec base containers data-default directory fgl filepath mtl
+    network-uri optparse-applicative pandoc pandoc-types parsec process
+    semigroups shake text
   ];
   executableHaskellDepends = [
     base directory filepath optparse-applicative pandoc pandoc-types

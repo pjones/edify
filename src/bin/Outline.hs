@@ -1,4 +1,5 @@
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 {-
 
@@ -25,11 +26,11 @@ import Control.Monad
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Maybe
 import Data.Monoid
-import qualified Data.Text as T
+import Data.Text (Text)
+import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
 import Options.Applicative
 import Text.Pandoc.Definition (Pandoc(..))
-import Text.Pandoc.Options
-import Text.Pandoc.Readers.Markdown
 
 --------------------------------------------------------------------------------
 -- Project imports.
@@ -37,6 +38,7 @@ import qualified Text.Edify.File.Time as ET
 import Text.Edify.Time.TimeCode
 import Text.Edify.Time.TimeTree
 import Text.Edify.Util.HeaderTree
+import Text.Edify.Util.Markdown (readMarkdownText)
 
 --------------------------------------------------------------------------------
 -- | Options for the outline command.
@@ -62,7 +64,7 @@ options = Options <$> optional (argument str (metavar "FILE"))
 --------------------------------------------------------------------------------
 dispatch :: Options -> IO ()
 dispatch Options{..} = do
-  markdown <- content file
+  markdown <- readFileOrStdin file
   treeM    <- runMaybeT (msum $ map ($ headers markdown) timeCodeOptions)
 
   case treeM of
@@ -70,10 +72,10 @@ dispatch Options{..} = do
     Just tree -> timeOutline tree
 
   where
-    timeCodeOptions :: [[HeaderTree String] -> MaybeT IO [TimeTree String]]
+    timeCodeOptions :: [[HeaderTree Text] -> MaybeT IO [TimeTree Text]]
     timeCodeOptions = [usingBoth, usingAttr, usingMap]
 
-    usingBoth :: [HeaderTree String] -> MaybeT IO [TimeTree String]
+    usingBoth :: [HeaderTree Text] -> MaybeT IO [TimeTree Text]
     usingBoth hs = do
       key   <- maybe mzero return timeKey
       mFile <- maybe mzero return timeFile
@@ -83,62 +85,58 @@ dispatch Options{..} = do
         dict <- dictE
         timeTreeFromMapOrAttr dict key hs
 
-    usingAttr :: [HeaderTree String] -> MaybeT IO [TimeTree String]
+    usingAttr :: [HeaderTree Text] -> MaybeT IO [TimeTree Text]
     usingAttr hs = do
       key <- maybe mzero return timeKey
       either (liftIO . fail) return $ timeTreeFromAttr key hs
 
-    usingMap :: [HeaderTree String] -> MaybeT IO [TimeTree String]
+    usingMap :: [HeaderTree Text] -> MaybeT IO [TimeTree Text]
     usingMap hs = do
       mFile <- maybe mzero return timeFile
       m     <- liftIO (ET.parseFile mFile)
       either (liftIO . fail) return $ flip timeTreeFromMap hs =<< m
 
 --------------------------------------------------------------------------------
-content :: Maybe FilePath -> IO String
-content file = case file of
-  Nothing -> getContents
-  Just f  -> readFile f
+readFileOrStdin :: Maybe FilePath -> IO Text
+readFileOrStdin file = case file of
+  Nothing -> Text.getContents
+  Just f  -> Text.readFile f
 
 --------------------------------------------------------------------------------
-headers :: String -> [HeaderTree String]
-headers path = case readMarkdown def path of
+headers :: Text -> [HeaderTree Text]
+headers content = case readMarkdownText content of
   Left _             -> []
   Right (Pandoc _ x) -> headerTree x
 
 --------------------------------------------------------------------------------
-simpleOutline :: Int -> [HeaderTree String] -> IO ()
+simpleOutline :: Int -> [HeaderTree Text] -> IO ()
 simpleOutline _ []                     = return ()
 simpleOutline n (HeaderTree h hs:xs) = do
-  putStrLn (replicate n ' ' ++ title h)
+  Text.putStrLn (Text.replicate n " " <> title h)
   simpleOutline (n+2) hs
   simpleOutline n xs
 
 --------------------------------------------------------------------------------
-timeOutline :: [TimeTree String] -> IO ()
+timeOutline :: [TimeTree Text] -> IO ()
 timeOutline [] = return ()
 timeOutline ts = do
   topLevelTotal <- sum <$> mapM (\t -> printTree 0 t <* putStr "\n") ts
-  printTitle 0 "[TOTAL]" '-' topLevelTotal
+  printTitle 0 "[TOTAL]" "-" topLevelTotal
 
 --------------------------------------------------------------------------------
-printTree :: Int -> TimeTree String -> IO TimeCode
+printTree :: Int -> TimeTree Text -> IO TimeCode
 printTree n (TimeTree hi timeCode hs) = do
-    printTitle n (title hi) '.' timeCode
+    printTitle n (title hi) "." timeCode
     mapM_ (printTree (n+2)) hs
     return timeCode
 
 --------------------------------------------------------------------------------
-printTitle :: Int -> String -> Char -> TimeCode -> IO ()
-printTitle n title lineChar tc = putStrLn line where
-  title' = replicate n ' ' ++ take (titleWidth - n) title
-  bar    = replicate (titleWidth - length title' - 2) lineChar
-  line   = title' ++ " " ++ bar ++ " " ++ timeCodeStr tc
+printTitle :: Int -> Text -> Text -> TimeCode -> IO ()
+printTitle n title lineChar tc = Text.putStrLn line where
+  title' = Text.replicate n " " <> Text.take (titleWidth - n) title
+  bar    = Text.replicate (titleWidth - Text.length title' - 2) lineChar
+  line   = title' <> " " <> bar <> " " <> asHHMMSS tc
 
 --------------------------------------------------------------------------------
 titleWidth :: Int
 titleWidth = 72 -- 80 columns minus time code.
-
---------------------------------------------------------------------------------
-timeCodeStr :: TimeCode -> String
-timeCodeStr = T.unpack . asHHMMSS

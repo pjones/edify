@@ -27,6 +27,7 @@ module Text.Edify.Filter.FilterT
   , processPandoc
   , processFile
   , verbose
+  , checkForCycles
   , runFilterT
   ) where
 
@@ -40,11 +41,12 @@ import Control.Monad.Reader.Class (MonadReader, asks)
 import Control.Monad.State.Class (MonadState, get, gets, put, modify)
 import Control.Monad.State.Lazy (StateT, evalStateT)
 import Data.Bifunctor (bimap)
-import qualified Data.Graph.Analysis.Algorithms.Common as Graph
 import qualified Data.Graph.Inductive.Graph as Graph
 import Data.Graph.Inductive.PatriciaTree (Gr)
+import qualified Data.Graph.Inductive.Query.DFS as Graph
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NonEmpty
+import Data.Maybe (catMaybes)
 import System.FilePath ((</>), takeDirectory)
 import System.IO (hPutStrLn, stderr)
 import Text.Pandoc.Definition (Pandoc)
@@ -59,7 +61,7 @@ import System.Directory ( canonicalizePath
 -- Project Imports:
 import Text.Edify.Build.Template (OutputFormat)
 import Text.Edify.Filter.Options (Options(..))
-import Text.Edify.Util.Markdown (parseMarkdown)
+import Text.Edify.Util.Markdown (readMarkdownFile)
 
 --------------------------------------------------------------------------------
 -- | Internal state.
@@ -97,14 +99,14 @@ data Error = Error String
            | MissingFile FilePath
            | EmptyPopfile FilePath
            | BadMarkdownFile FilePath String
-           | CycleFound [FilePath]
+           | CycleFound [FilePath] String
 
 instance Show Error where
   show (Error s) = s
   show (MissingFile f) = "file does not exist: " ++ f
   show (EmptyPopfile f) = "popfile called on single element stack " ++ f
   show (BadMarkdownFile f s ) = "failed to parse markdown file " ++ f ++ " :" ++ s
-  show (CycleFound fs) = "inclusion cycle: " ++ show fs
+  show (CycleFound fs p) = "inclusion cycle: " ++ show fs ++ "\n" ++ p
 
 --------------------------------------------------------------------------------
 -- | Internal monad transformer for filters.
@@ -132,6 +134,25 @@ pwd :: (Monad m) => FilterT m FilePath
 pwd = gets (takeDirectory . snd . NonEmpty.head . stateInputFile)
 
 --------------------------------------------------------------------------------
+data Cycles = NoCycles | Cycles [Graph.Node] deriving Show
+
+checkForCycles :: Gr FilePath () -> Cycles
+checkForCycles g = foldr (check []) NoCycles (Graph.nodes g)
+  where
+    check :: [Graph.Node] -> Graph.Node -> Cycles -> Cycles
+    check _ _ (Cycles ns)  = Cycles ns
+    check stack n NoCycles =
+      let rs = Graph.reachable n g
+          stack' = stack ++ [n]
+
+      in case rs of
+           []   -> NoCycles
+           [_]  -> NoCycles
+           _:ns -> if any (`elem` stack') ns
+                      then Cycles (stack' ++ filter (`elem` stack') ns)
+                      else foldr (check stack') NoCycles ns
+
+--------------------------------------------------------------------------------
 -- | Add a file to the input file stack.  This will also change the
 -- working directory for the current process so other filters work as
 -- expected.
@@ -146,22 +167,30 @@ pushfile file = do
       state'    = State { stateInputFile = node :| (x:xs)
                         , stateDeps = stateDeps state
                         , stateNodeID = stateNodeID state + 1
-                        , stateInclusions = Graph.insEdge edge $
-                                              Graph.insNode node $
+                        , stateInclusions = insEdge edge $
+                                              insNode node $
                                                 stateInclusions state
                         }
 
 
-  case Graph.cyclesIn (stateInclusions state') of
-    [] -> do
+  case checkForCycles (stateInclusions state') of
+    NoCycles -> do
       put state'
       liftIO (setCurrentDirectory $ takeDirectory file')
 
-    c:_ -> do
-      let names = map snd c
-      throwError (CycleFound names)
+    (Cycles ns) -> do
+      let names = catMaybes $ map (Graph.lab $ stateInclusions state') ns
+      throwError (CycleFound names $ Graph.prettify (stateInclusions state'))
 
   where
+    insNode :: Graph.LNode FilePath -> Gr FilePath () -> Gr FilePath ()
+    insNode n g | Graph.gelem (fst n) g = g
+                | otherwise             = Graph.insNode n g
+
+    insEdge :: Graph.LEdge () -> Gr FilePath () -> Gr FilePath ()
+    insEdge e g | Graph.hasLEdge g e = g
+                | otherwise          = Graph.insEdge e g
+
     nodeID :: FilePath -> State -> Int
     nodeID path state =
       let nodes = Graph.labNodes (stateInclusions state) in
@@ -211,7 +240,7 @@ processFile file = do
   cleanFile <- realpath file
   exist <- liftIO (doesFileExist cleanFile)
   unless exist (throwError $ MissingFile cleanFile)
-  markdown <- parseMarkdown cleanFile
+  markdown <- readMarkdownFile cleanFile
 
   doc <- case markdown of
            Left e  -> throwError (BadMarkdownFile file e)

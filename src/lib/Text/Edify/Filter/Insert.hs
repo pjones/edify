@@ -112,6 +112,8 @@ insertParsedFile = fmap concat . mapM blk
 
     noBreaks :: Inline -> Bool
     noBreaks LineBreak = False
+    noBreaks Space     = False
+    noBreaks SoftBreak = False
     noBreaks _         = True
 
     include :: (MonadIO m) => Inline -> FilterT m (Maybe [Block])

@@ -1,2 +1,4 @@
-{ pkgs ? (import <nixpkgs> {}).pkgs }:
+{ pkgs ? import ./nix/nixpkgs.nix
+}:
+
 pkgs.haskellPackages.callPackage ./edify.nix { }

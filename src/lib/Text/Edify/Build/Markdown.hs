@@ -60,5 +60,5 @@ parse target@Target{..} = do
 
 --------------------------------------------------------------------------------
 -- | Generate a Markdown file from a 'Pandoc' object.
-write :: (MonadIO m) => Pandoc -> FilePath -> m ()
+write :: (MonadIO m) => Pandoc -> FilePath -> m (Maybe String)
 write = Markdown.writeMarkdownFile

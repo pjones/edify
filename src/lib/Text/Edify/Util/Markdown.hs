@@ -14,58 +14,63 @@ the LICENSE.md file.
 module Text.Edify.Util.Markdown
   ( readerOptions
   , writerOptions
-  , parseMarkdown
+  , readMarkdownText
+  , readMarkdownFile
   , writeMarkdownFile
   ) where
 
 --------------------------------------------------------------------------------
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Default (def)
-import qualified Data.Set as Set
-import System.IO (writeFile)
+import Data.Text (Text)
+import qualified Data.Text.IO as Text
+import qualified Text.Pandoc.Class as Pandoc
 import Text.Pandoc.Definition (Pandoc)
+import qualified Text.Pandoc.Extensions as Pandoc
+import Text.Pandoc.Options (ReaderOptions(..), WriterOptions(..))
 import Text.Pandoc.Readers.Markdown (readMarkdown)
 import qualified Text.Pandoc.Templates as Pandoc
 import Text.Pandoc.Writers.Markdown (writeMarkdown)
 
-import Text.Pandoc.Options ( ReaderOptions(..)
-                           , WriterOptions(..)
-                           , pandocExtensions
-                           , githubMarkdownExtensions
-                           )
-
 --------------------------------------------------------------------------------
 readerOptions :: ReaderOptions
 readerOptions =
-  def { readerSmart      = True
-      , readerStandalone = True
-      , readerExtensions = Set.unions [ pandocExtensions
-                                      , githubMarkdownExtensions
-                                      ]
+  def { readerStandalone = True
+      , readerExtensions = mconcat
+                             [ Pandoc.pandocExtensions
+                             , Pandoc.githubMarkdownExtensions
+                             ]
       }
 
 --------------------------------------------------------------------------------
 writerOptions :: WriterOptions
 writerOptions =
-  def { writerExtensions = pandocExtensions
+  def { writerExtensions = mconcat
+                           [ Pandoc.pandocExtensions
+                           ]
       }
 
 --------------------------------------------------------------------------------
-parseMarkdown :: (MonadIO m) => FilePath -> m (Either String Pandoc)
-parseMarkdown path = do
-  str <- liftIO (readFile path)
-
-  case readMarkdown readerOptions str of
-    Left e  -> return (Left $ show e)
-    Right p -> return (Right p)
+readMarkdownText :: Text -> Either String Pandoc
+readMarkdownText t =
+  case Pandoc.runPure $ readMarkdown readerOptions t of
+    Left e  -> Left (show e)
+    Right p -> Right p
 
 --------------------------------------------------------------------------------
-writeMarkdownFile :: (MonadIO m) => Pandoc -> FilePath -> m ()
+readMarkdownFile :: (MonadIO m) => FilePath -> m (Either String Pandoc)
+readMarkdownFile path = do
+  str <- liftIO (Text.readFile path)
+  return (readMarkdownText str)
+
+--------------------------------------------------------------------------------
+writeMarkdownFile :: (MonadIO m) => Pandoc -> FilePath -> m (Maybe String)
 writeMarkdownFile doc file = liftIO $ do
-    template <- Pandoc.getDefaultTemplate Nothing "markdown"
+    result <- Pandoc.runIO $ do
+      template <- Pandoc.getDefaultTemplate "markdown"
+      let opts = writerOptions { writerTemplate = Just template}
+      writeMarkdown opts doc
 
-    let opts = writerOptions
-                 { writerTemplate = either (const Nothing) Just template
-                 }
-
-    writeFile file (writeMarkdown opts doc)
+    case result of
+      Left e  -> return (Just $ show e)
+      Right t -> Text.writeFile file t >> return Nothing

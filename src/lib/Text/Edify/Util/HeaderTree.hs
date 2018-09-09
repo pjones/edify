@@ -22,6 +22,8 @@ module Text.Edify.Util.HeaderTree
 
 --------------------------------------------------------------------------------
 -- Library imports.
+import Data.Text (Text)
+import qualified Text.Pandoc.Class as Pandoc
 import Text.Pandoc.Definition
 import Text.Pandoc.Options
 import Text.Pandoc.Walk
@@ -42,15 +44,18 @@ data HeaderTree a = HeaderTree (HeaderInfo a) [HeaderTree a] deriving Show
 --------------------------------------------------------------------------------
 -- | Turn a @Pandoc@ body into a list of @HeaderTree@ values.  The
 -- list forms a hierarchy were the elements are roots of the tree.
-renderHeaders :: HeaderTree [Inline] -> HeaderTree String
+renderHeaders :: HeaderTree [Inline] -> HeaderTree Text
 renderHeaders (HeaderTree info children) =
     HeaderTree (update info) (map renderHeaders children)
   where
-    update :: HeaderInfo [Inline] -> HeaderInfo String
+    update :: HeaderInfo [Inline] -> HeaderInfo Text
     update hi = hi { title = render (title hi) }
 
-    render :: [Inline] -> String
-    render content = writeMarkdown def (Pandoc nullMeta [Plain content])
+    render :: [Inline] -> Text
+    render content =
+      case Pandoc.runPure $ writeMarkdown def (Pandoc nullMeta [Plain content]) of
+        Left  _ -> mempty -- Should be unreachable.
+        Right t -> t
 
 --------------------------------------------------------------------------------
 listHeaders :: (HeaderInfo [Inline]  -> ListAttributes)
@@ -70,7 +75,7 @@ listHeaders lattrs hts = go hts
                                        ]
 
 --------------------------------------------------------------------------------
-headerTree :: [Block] -> [HeaderTree String]
+headerTree :: [Block] -> [HeaderTree Text]
 headerTree = map renderHeaders . headerTree' onlyHeaders
 
 --------------------------------------------------------------------------------
