@@ -59,8 +59,8 @@ let
 
       buildPhase = ''
         echo "==> edify ${courses}"
-        edify build --top "$(pwd)" ${courses}
         ${buildPhase}
+        edify build --top "$(pwd)" ${courses}
       '';
 
       installPhase = ''
