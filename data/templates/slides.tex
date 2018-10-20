@@ -15,6 +15,8 @@
 % ===============================================================================
 % Beamer settings:
 \usetheme{Boadilla}
+\useoutertheme{infolines}
+\useinnertheme{circles}
 
 \definecolor{devalot-blue}{HTML}{065078}
 \definecolor{devalot-ltblue}{HTML}{C8DAE1}
@@ -37,6 +39,26 @@
 \setbeamercolor*{subitem}{fg=devalot-red}
 \setbeamercolor*{item}{fg=devalot-dkpurple}
 \setbeamercolor*{description item}{fg=devalot-blue}
+
+% https://tex.stackexchange.com/questions/83048/change-the-contents-of-footline-in-a-beamer-presentation
+\makeatletter
+\setbeamertemplate{footline}
+{
+  \leavevmode%
+  \hbox{%
+  \begin{beamercolorbox}[wd=.333333\paperwidth,ht=2.25ex,dp=1ex,center]{title in head/foot}%
+    \usebeamerfont{title in head/foot}\insertsection
+  \end{beamercolorbox}%
+  \begin{beamercolorbox}[wd=.333333\paperwidth,ht=2.25ex,dp=1ex,center]{date in head/foot}%
+    \usebeamerfont{date in head/foot}\insertsubsection
+  \end{beamercolorbox}}%
+  \begin{beamercolorbox}[wd=.333333\paperwidth,ht=2.25ex,dp=1ex,center]{title in head/foot}%
+    \usebeamerfont{title in head/foot}\insertshortauthor{}\hspace*{2em}
+    \insertframenumber{} / \inserttotalframenumber\hspace*{2ex}
+  \end{beamercolorbox}%
+  \vskip0pt%
+}
+\makeatother
 
 % ===============================================================================
 \ifxetex
@@ -92,23 +114,12 @@ $endif$
 % using explicit options in \includegraphics[width, height, ...]{}
 \setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
 
-% Comment these out if you don't want a slide with just the
-% part/section/subsection/subsubsection title:
-%% \AtBeginPart{
-%%   \let\insertpartnumber\relax
-%%   \let\partname\relax
-%%   \frame{\partpage}
-%% }
-%% \AtBeginSection{
-%%   \let\insertsectionnumber\relax
-%%   \let\sectionname\relax
-%%   \frame{\sectionpage}
-%% }
-%% \AtBeginSubsection{
-%%   \let\insertsubsectionnumber\relax
-%%   \let\subsectionname\relax
-%%   \frame{\subsectionpage}
-%% }
+% Level 2 headings turn into title slides!
+\AtBeginSubsection{
+  \let\insertsubsectionnumber\relax
+  \let\subsectionname\relax
+  \frame{\subsectionpage}
+}
 
 $if(strikeout)$
 \usepackage[normalem]{ulem}
@@ -172,41 +183,36 @@ $endif$
 
 \defbeamertemplate*{title page}{customized}[1][]
 {
-  \begin{minipage}[b][\paperheight]{\textwidth}
+  \centering
+  \usebeamerfont{title}\inserttitle\par
+  \usebeamerfont{subtitle}\usebeamercolor[fg]{subtitle}\insertsubtitle\par
+  \vspace{5mm}
+
+  \begin{columns}
+   $for(author)$
+    \column{.45\linewidth}
     \centering
-    \vfill
-    \usebeamerfont{title}\inserttitle\par
-    \usebeamerfont{subtitle}\usebeamercolor[fg]{subtitle}\insertsubtitle\par
-    \usebeamerfont{date}\insertdate\par
+    \usebeamerfont{author}$author.name$\par
+    \raisebox{-0.25\height}{\includegraphics[width=10px]{$logoemailpdf$}}
+    $author.email$\\
+    $if(author.twitter)$
+    \raisebox{-0.25\height}{\includegraphics[width=10px]{$logotwitterpdf$}}
+    \href{https://twitter.com/$author.twitter$}{@$author.twitter$}
+    $endif$
+    $if(author.url)$
+    $author.url$
+    $endif$
+   $endfor$
+  \end{columns}
 
-    \vfill
-
-    \begin{columns}
-     $for(author)$
-      \column{.45\linewidth}
-      \centering
-      \usebeamerfont{author}$author.name$\par
-      \raisebox{-0.25\height}{\includegraphics[width=10px]{$logoemailpdf$}}
-      $author.email$\\
-      $if(author.twitter)$
-      \raisebox{-0.25\height}{\includegraphics[width=10px]{$logotwitterpdf$}}
-      \href{https://twitter.com/$author.twitter$}{@$author.twitter$}
-      $endif$
-      $if(author.url)$
-      $author.url$
-      $endif$
-     $endfor$
-    \end{columns}
-
-    \vfill
+  \begin{center}
     \usebeamercolor[fg]{titlegraphic}\inserttitlegraphic
-  \end{minipage}
+  \end{center}
 }
 
 % ===============================================================================
 \begin{document}
-\frame{\titlepage}
+\frame[plain]{\titlepage}
 
 $body$
-
 \end{document}
