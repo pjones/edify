@@ -20,9 +20,8 @@ module Text.Edify.Time.TimeTree
 
 --------------------------------------------------------------------------------
 -- Library imports.
-import           Data.Map (Map)
+import Data.List (lookup)
 import qualified Data.Map as M
-import qualified Data.Text as T
 
 --------------------------------------------------------------------------------
 -- Project imports.
@@ -38,7 +37,7 @@ data TimeTree a = TimeTree (HeaderInfo a) TimeCode [TimeTree a]
 
 --------------------------------------------------------------------------------
 -- | TimeCode lookup function.
-type Lookup a = (HeaderInfo a -> Either String TimeCode)
+type Lookup a = (HeaderInfo a -> Either Text TimeCode)
 
 --------------------------------------------------------------------------------
 -- | Convert a list of @HeaderTree@ values to a list of @TimeTree@
@@ -46,9 +45,9 @@ type Lookup a = (HeaderInfo a -> Either String TimeCode)
 -- parsed or are missing.  Time codes should be found in the heading's
 -- attributes under the given key.
 timeTreeFromAttr :: (Show a)
-                 => String
+                 => Text
                  -> [HeaderTree a]
-                 -> Either String [TimeTree a]
+                 -> Either Text [TimeTree a]
 timeTreeFromAttr key = timeTree (timeCodeFromAttr key)
 
 --------------------------------------------------------------------------------
@@ -57,9 +56,9 @@ timeTreeFromAttr key = timeTree (timeCodeFromAttr key)
 -- parsed or are missing.  Time codes should be found in the given map
 -- under heading IDs.
 timeTreeFromMap :: (Show a)
-                => Map String TimeCode
+                => Map Text TimeCode
                 -> [HeaderTree a]
-                -> Either String [TimeTree a]
+                -> Either Text [TimeTree a]
 timeTreeFromMap m = timeTree (timeCodeFromMap m)
 
 --------------------------------------------------------------------------------
@@ -68,10 +67,10 @@ timeTreeFromMap m = timeTree (timeCodeFromMap m)
 -- parsed or are missing.  Time codes should be found in the given map
 -- or in the heading's attributes under the given key.
 timeTreeFromMapOrAttr :: (Show a)
-                      => Map String TimeCode
-                      -> String
+                      => Map Text TimeCode
+                      -> Text
                       -> [HeaderTree a]
-                      -> Either String [TimeTree a]
+                      -> Either Text [TimeTree a]
 timeTreeFromMapOrAttr m key = timeTree (timeCodeFromMapOrAttr m key)
 
 --------------------------------------------------------------------------------
@@ -79,7 +78,7 @@ timeTreeFromMapOrAttr m key = timeTree (timeCodeFromMapOrAttr m key)
 -- values, with the possibility of failure if time codes can't be
 -- parsed or are missing.  Time codes are taken from the given look-up
 -- function.
-timeTree :: (Show a) => Lookup a -> [HeaderTree a] -> Either String [TimeTree a]
+timeTree :: (Show a) => Lookup a -> [HeaderTree a] -> Either Text [TimeTree a]
 timeTree _ []                      = Right []
 timeTree f (HeaderTree hi hs:xs) = do
   others <- timeTree f xs
@@ -90,28 +89,28 @@ timeTree f (HeaderTree hi hs:xs) = do
     ([], Right tc) -> return (TimeTree hi tc []:others)
 
     -- Nodes.  Must not have time codes.
-    (_,  Right _)  -> Left ("non-leaf header with time code: " ++ show (title hi))
+    (_,  Right _)  -> Left ("non-leaf header with time code: " <> show (title hi))
     (hs', Left _)  -> do
       below <- timeTree f hs'
       let total = sum $ map (\(TimeTree _ tc _) -> tc) below
       return (TimeTree hi total below:others)
 
 --------------------------------------------------------------------------------
-timeCodeFromMap :: Map String TimeCode -> HeaderInfo a -> Either String TimeCode
+timeCodeFromMap :: Map Text TimeCode -> HeaderInfo a -> Either Text TimeCode
 timeCodeFromMap m (HeaderInfo _ (hid, _, _) _) =
-  maybeToEither ("no time code for " ++ hid) (M.lookup hid m)
+  maybeToEither ("no time code for " <> hid) (M.lookup hid m)
 
 --------------------------------------------------------------------------------
-timeCodeFromAttr :: (Show a) => String -> HeaderInfo a -> Either String TimeCode
+timeCodeFromAttr :: (Show a) => Text -> HeaderInfo a -> Either Text TimeCode
 timeCodeFromAttr key (HeaderInfo _ (_, _, alist) title') = do
-  str <- maybeToEither ("no time code for: " ++ show title') (lookup key alist)
-  parse (T.pack str)
+  str <- maybeToEither ("no time code for: " <> show title') (lookup key alist)
+  parse str
 
 --------------------------------------------------------------------------------
 timeCodeFromMapOrAttr :: (Show a)
-                      => Map String TimeCode
-                      -> String
+                      => Map Text TimeCode
+                      -> Text
                       -> HeaderInfo a
-                      -> Either String TimeCode
+                      -> Either Text TimeCode
 timeCodeFromMapOrAttr m key header =
   timeCodeFromMap m header `eitherAlt` timeCodeFromAttr key header

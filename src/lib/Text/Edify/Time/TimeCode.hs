@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 {-
 
 This file is part of the package edify. It is subject to the license
@@ -26,12 +23,9 @@ module Text.Edify.Time.TimeCode
 
 --------------------------------------------------------------------------------
 -- Library imports.
-import           Data.Monoid
-import           Data.Text (Text)
-import qualified Data.Text as T
-import           Text.Parsec hiding (parse)
-import           Text.Parsec.Text
-import           Text.Printf (printf)
+import qualified Data.Attoparsec.Text as Atto
+import Data.Attoparsec.Text hiding (parse)
+import Text.Printf (printf)
 
 --------------------------------------------------------------------------------
 -- | Time duration represented as seconds.
@@ -53,7 +47,7 @@ asHHMMSS :: TimeCode -> Text
 asHHMMSS (TimeCode n) = convert hs <> ":" <> convert ms <> ":" <> convert ss
   where
     convert :: Int -> Text
-    convert = T.pack . printf "%02d"
+    convert = toText . (printf "%02d" :: Int -> String)
 
     hs, ms, ss :: Int
     hs = n `div` 3600
@@ -67,16 +61,16 @@ parseTimeCode = parseHHMMSS -- May add more parsers in the future.
 
 --------------------------------------------------------------------------------
 -- | Parse a @TimeCode@ out of some text.
-parse :: Text -> Either String TimeCode
-parse text = case runParser parseTimeCode () "" text of
-  Left e   -> Left ("failed to parse time code: " ++ show e)
+parse :: Text -> Either Text TimeCode
+parse text = case Atto.parseOnly parseTimeCode text of
+  Left e   -> Left ("failed to parse time code: " <> show e)
   Right tc -> Right tc
 
 --------------------------------------------------------------------------------
 -- | Parse a @TimeCode@ in the HH:MM:SS format.
 parseHHMMSS :: Parser TimeCode
 parseHHMMSS = do
-  hs <- read <$> (many1 digit <?> "hours")   <* char ':'
-  ms <- read <$> (many1 digit <?> "minutes") <* char ':'
-  ss <- read <$> (many1 digit <?> "seconds")
+  hs <- (decimal <?> "hours"  ) <* char ':'
+  ms <- (decimal <?> "minutes") <* char ':'
+  ss <-  decimal <?> "seconds"
   return $ TimeCode (hs * 3600 + ms * 60 + ss)

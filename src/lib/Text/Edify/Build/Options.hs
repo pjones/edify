@@ -19,13 +19,10 @@ module Text.Edify.Build.Options
 
 --------------------------------------------------------------------------------
 -- Library Imports:
-import Control.Applicative (many, optional)
-import Data.Monoid ((<>))
-
 import Options.Applicative
-         ( Parser, option, argument, str
-         , long, help, metavar, value, showDefault
-         )
+  ( Parser, option, argument, str
+  , long, help, metavar, value, showDefault
+  )
 
 --------------------------------------------------------------------------------
 -- Project Imports:

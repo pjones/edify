@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 {-
 
 This file is part of the package edify. It is subject to the license
@@ -16,7 +14,6 @@ module ManifestTest (tests) where
 
 --------------------------------------------------------------------------------
 -- Library imports.
-import Data.Text (Text)
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -35,13 +32,10 @@ parsedSpec :: Assertion
 parsedSpec = do parsed <- go
                 parsed @=? fileList
   where
-    go :: IO (Either String [Text])
-    go = convert <$> parseFile "test/manifest.txt"
+    go :: IO (Either Text [Text])
+    go = files <<$>> parseFile "test/manifest.txt"
 
-    convert :: Either String Manifest -> Either String [Text]
-    convert = fmap files
-
-    fileList :: Either String [Text]
+    fileList :: Either Text [Text]
     fileList = Right [ "file1"
                      , "file2"
                      , "file3"

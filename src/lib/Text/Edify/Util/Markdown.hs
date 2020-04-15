@@ -20,9 +20,7 @@ module Text.Edify.Util.Markdown
   ) where
 
 --------------------------------------------------------------------------------
-import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Default (def)
-import Data.Text (Text)
 import qualified Data.Text.IO as Text
 import qualified Text.Pandoc.Class as Pandoc
 import Text.Pandoc.Definition (Pandoc)
@@ -51,23 +49,23 @@ writerOptions =
       }
 
 --------------------------------------------------------------------------------
-readMarkdownText :: Text -> Either String Pandoc
+readMarkdownText :: Text -> Either Text Pandoc
 readMarkdownText t =
   case Pandoc.runPure $ readMarkdown readerOptions t of
     Left e  -> Left (show e)
     Right p -> Right p
 
 --------------------------------------------------------------------------------
-readMarkdownFile :: (MonadIO m) => FilePath -> m (Either String Pandoc)
+readMarkdownFile :: (MonadIO m) => FilePath -> m (Either Text Pandoc)
 readMarkdownFile path = do
   str <- liftIO (Text.readFile path)
   return (readMarkdownText str)
 
 --------------------------------------------------------------------------------
-writeMarkdownFile :: (MonadIO m) => Pandoc -> FilePath -> m (Maybe String)
+writeMarkdownFile :: (MonadIO m) => Pandoc -> FilePath -> m (Maybe Text)
 writeMarkdownFile doc file = liftIO $ do
     result <- Pandoc.runIO $ do
-      template <- Pandoc.getDefaultTemplate "markdown"
+      template <- Pandoc.compileDefaultTemplate "markdown"
       let opts = writerOptions { writerTemplate = Just template}
       writeMarkdown opts doc
 

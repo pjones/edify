@@ -17,14 +17,13 @@ module Text.Edify.Filter.Options
   ) where
 
 --------------------------------------------------------------------------------
--- Library Imports:
-import Data.Monoid ((<>))
+-- Imports:
 import Options.Applicative
 
 --------------------------------------------------------------------------------
 data Options = Options
-  { divClassesToPromote :: [String]
-  , divClassesToRemove  :: [String]
+  { divClassesToPromote :: [Text]
+  , divClassesToRemove  :: [Text]
   , outputVerbose       :: Bool
   }
 

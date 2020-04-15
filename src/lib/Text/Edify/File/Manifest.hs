@@ -16,10 +16,8 @@ module Text.Edify.File.Manifest (Manifest, files, parseFile) where
 
 --------------------------------------------------------------------------------
 -- Library imports.
-import Data.Text (Text)
+import Data.Attoparsec.Text hiding (parse)
 import qualified Data.Text as T
-import Text.Parsec hiding (parse)
-import Text.Parsec.Text
 
 --------------------------------------------------------------------------------
 -- Project imports.
@@ -49,14 +47,14 @@ onlyFiles = concatMap extract . filter predicate where
 
 --------------------------------------------------------------------------------
 -- | Parse a file and return a 'Manifest'.
-parseFile :: FilePath -> IO (Either String Manifest)
+parseFile :: FilePath -> IO (Either Text Manifest)
 parseFile = EP.parseFile fileList
 
 --------------------------------------------------------------------------------
 -- | Parses a list of file names.
 fileList :: Parser Manifest
 fileList = Manifest . onlyFiles <$>
-           manyTill (whitespace <|> comment <|> fileName) eof
+           manyTill (whitespace <|> comment <|> fileName) endOfInput
 
 --------------------------------------------------------------------------------
 -- | Parse a file name.
@@ -66,8 +64,12 @@ fileName = do first  <- anyChar
               return . FileName . T.strip . T.pack $ (first : others)
            <?> "file name"
   where
-    endFileName :: Parser Char
-    endFileName = lookAhead (newline <|> char '#')
+    endFileName :: Parser ()
+    endFileName = do
+      c <- peekChar'
+      if c == '\n' || c == '#'
+        then pass
+        else mzero
 
 --------------------------------------------------------------------------------
 -- | Parse out whitespace as a comment.

@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 {-
 
 This file is part of the package edify. It is subject to the license
@@ -20,7 +18,6 @@ module Text.Edify.Build.Markdown
 
 --------------------------------------------------------------------------------
 -- Library Imports:
-import Control.Monad.IO.Class (MonadIO)
 import Data.Default (def)
 import Text.Pandoc.Definition (Pandoc)
 
@@ -39,10 +36,10 @@ import qualified Text.Edify.Util.Markdown as Markdown
 --
 -- Returns the 'Pandoc' object and a list files that the Markdown file
 -- depends on.
-parse :: (MonadIO m) => Target -> m (Pandoc, [FilePath])
+parse :: (MonadIO m, MonadFail m) => Target -> m (Pandoc, [FilePath])
 parse target@Target{..} = do
   result <- Filter.runFilterT (Just targetInputFile) env go
-  either fail return result
+  either (fail . toString) return result
 
   where
     env :: (MonadIO m) => Filter.Env m
@@ -60,5 +57,5 @@ parse target@Target{..} = do
 
 --------------------------------------------------------------------------------
 -- | Generate a Markdown file from a 'Pandoc' object.
-write :: (MonadIO m) => Pandoc -> FilePath -> m (Maybe String)
+write :: (MonadIO m) => Pandoc -> FilePath -> m (Maybe Text)
 write = Markdown.writeMarkdownFile

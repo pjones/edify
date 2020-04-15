@@ -19,12 +19,8 @@ module Text.Edify.Filter.Insert
 
 --------------------------------------------------------------------------------
 -- Library imports.
-import Control.Applicative
-import Control.Monad (unless)
 import Control.Monad.Except (throwError)
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import qualified Data.Text as T
-import Data.Traversable (traverse)
+import Data.List (lookup)
 import System.Directory (doesFileExist)
 import Text.Pandoc.Definition
 
@@ -57,7 +53,7 @@ import Text.Edify.Util.Narrow
 insertFile :: (MonadIO m) => Block -> FilterT m Block
 insertFile cb@(CodeBlock (blkid, classes, alist) _) =
   case lookup "insert" alist <|> lookup "include" alist of
-    Just f  -> CodeBlock (blkid, classes, map update alist) <$> newtxt f
+    Just f  -> CodeBlock (blkid, classes, map update alist) <$> newtxt (toString f)
     Nothing -> return cb
   -- FIXME: the newly created "inserted" attribute should be relative
   -- to the output file.
@@ -69,22 +65,23 @@ insertFile x = return x
 
 --------------------------------------------------------------------------------
 -- | Read a file with code in it, possibly narrowing to a token.
-readCodeFile :: (MonadIO m) => FilePath -> Maybe String -> FilterT m String
+readCodeFile :: (MonadIO m) => FilePath -> Maybe Text -> FilterT m Text
 readCodeFile path Nothing = do
-  verbose ("reading source code file: " ++ path)
+  verbose ("reading source code file: " <> toText path)
   cleanPath <- realpath path
   addDependency cleanPath
   exist <- liftIO (doesFileExist cleanPath)
   unless exist (throwError $ MissingFile cleanPath)
-  liftIO (readFile cleanPath)
+  liftIO (readFileText cleanPath)
 
 readCodeFile path (Just token) = do
-  contents <- T.pack <$> readCodeFile path Nothing
+  contents <- readCodeFile path Nothing
 
-  case narrow (Token (T.pack token))  contents of
-    Right txt -> (return . T.unpack . removeIndent) txt
-    Left err  -> throwError (Error $ "can't find token '" ++ token ++
-                             "' in " ++ path ++ ": " ++ err)
+  case narrow (Token token)  contents of
+    Right txt -> (return . removeIndent) txt
+    Left err  -> throwError
+      (Error $ "can't find token '" <> token <>
+               "' in " <> toText path <> ": " <> err)
 
 --------------------------------------------------------------------------------
 -- | Replaces file insertion markers with the files they reference.
@@ -122,8 +119,8 @@ insertParsedFile = fmap concat . mapM blk
 
     parse :: (MonadIO m) => FileRef -> FilterT m [Block]
     parse (FileRef f hid) = do
-      verbose ("including markdown file: " ++ f)
-      file <- realpath f
+      verbose ("including markdown file: " <> f)
+      file <- realpath (toString f)
       addDependency file
       (Pandoc _ bs) <- processFile file
 

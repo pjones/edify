@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 {-
 
 This file is part of the package edify. It is subject to the license
@@ -16,8 +14,6 @@ module InclusionTest (tests) where
 
 --------------------------------------------------------------------------------
 -- Library imports.
-import Control.Monad (forM_)
-import Control.Monad.IO.Class (MonadIO, liftIO)
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -39,11 +35,11 @@ tests = testGroup "Inclusion"
 
 --------------------------------------------------------------------------------
 parsedSpec :: Assertion
-parsedSpec = do
-    forM_ inputs $ \(s, r) -> inclusionMarker s @?= r
-
+parsedSpec =
+  forM_ inputs $ \(s, r) ->
+    inclusionMarker s @?= r
   where
-    inputs :: [(String, Maybe FileRef)]
+    inputs :: [(Text, Maybe FileRef)]
     inputs =
       [ ("foobar",         Nothing)
       , ("<<foo.md",       Nothing)
@@ -65,7 +61,7 @@ cycleSpec = do
     hasCycle f = do
       result <- FilterT.runFilterT (Just "test/data/a.md") env f
       case result of
-        Left  e -> liftIO (putStrLn e) >> return True
+        Left  e -> liftIO (putTextLn e) >> return True
         Right _ -> return False
 
     env :: (MonadIO m) => FilterT.Env m

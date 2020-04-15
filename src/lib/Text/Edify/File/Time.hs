@@ -18,36 +18,34 @@ module Text.Edify.File.Time
 
 --------------------------------------------------------------------------------
 -- Library imports.
-import           Data.Char
-import           Data.Map (Map)
+import Data.Attoparsec.Text hiding (parse)
+import Data.Char
 import qualified Data.Map as M
-import           Text.Parsec hiding (parse)
-import           Text.Parsec.Text
 
 --------------------------------------------------------------------------------
 -- Project imports.
-import           Text.Edify.Time.TimeCode
+import Text.Edify.Time.TimeCode
 import qualified Text.Edify.Util.Parse as EP
 
 --------------------------------------------------------------------------------
 -- | Internal type that the parser functions use.
-data Token = Comment | Entry String TimeCode
+data Token = Comment | Entry Text TimeCode
 
 --------------------------------------------------------------------------------
 -- | Parse time codes from a file.
-parseFile :: FilePath -> IO (Either String (Map String TimeCode))
+parseFile :: FilePath -> IO (Either Text (Map Text TimeCode))
 parseFile = EP.parseFile parser
 
 --------------------------------------------------------------------------------
 -- | Raw parser for mapping identifiers to time codes.
-parser :: Parser (Map String TimeCode)
-parser = tokensToMap <$> manyTill (whitespace <|> comment <|> entry) eof
+parser :: Parser (Map Text TimeCode)
+parser = tokensToMap <$> manyTill (whitespace <|> comment <|> entry) endOfInput
   where
     whitespace :: Parser Token
-    whitespace = EP.parseWhitespace >> return Comment
+    whitespace = EP.parseWhitespace $> Comment
 
     comment :: Parser Token
-    comment = EP.parseComment >> return Comment
+    comment = EP.parseComment $> Comment
 
 --------------------------------------------------------------------------------
 -- | Parse an entry that is made up of an identifier and then a time code.
@@ -55,17 +53,17 @@ entry :: Parser Token
 entry = do
     first  <- notSpace <?> "time identifier"
     others <- manyTill anyChar space <?> "time identifier"
-    tc     <- spaces >> parseTimeCode
-    return $ Entry (first:others) tc
+    tc     <- skipSpace *> parseTimeCode
+    return $ Entry (toText (first:others)) tc
   where
     notSpace :: Parser Char
     notSpace = satisfy (not . isSpace)
 
 --------------------------------------------------------------------------------
 -- | Convert tokens into a mapping of time codes.
-tokensToMap :: [Token] -> Map String TimeCode
+tokensToMap :: [Token] -> Map Text TimeCode
 tokensToMap = foldr insert M.empty
   where
-    insert :: Token -> Map String TimeCode -> Map String TimeCode
+    insert :: Token -> Map Text TimeCode -> Map Text TimeCode
     insert Comment m           = m
     insert (Entry key value) m = M.insert key value m

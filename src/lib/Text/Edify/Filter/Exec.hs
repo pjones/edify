@@ -17,7 +17,8 @@ module Text.Edify.Filter.Exec
 
 --------------------------------------------------------------------------------
 import Control.Monad.Except (throwError)
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Data.List (lookup)
+import qualified Data.Text as Text
 import System.Exit
 import System.Process
 import Text.Pandoc
@@ -36,18 +37,19 @@ executeBlock cb@(CodeBlock (x, y, alist) input) =
 executeBlock x = return x
 
 --------------------------------------------------------------------------------
-execute :: (MonadIO m) => String -> String -> FilterT m String
+execute :: (MonadIO m) => Text -> Text -> FilterT m Text
 execute input cmd = do
   (exitcode, sout, _) <- liftIO (readProcessWithExitCode "/bin/sh" args input')
 
   case (exitcode, sout) of
-    (ExitSuccess, x) -> return x
-    _ -> throwError (Error $ "command failed: " ++ cmd)
+    (ExitSuccess, x) -> return (toText x)
+    _ -> throwError (Error $ "command failed: " <> cmd)
 
   where
     -- Pandoc doesn't include final newline.
     input' :: String
-    input' = if null input then input else input ++ "\n"
+    input' | Text.null input = toString input
+           | otherwise  = toString (input <> "\n")
 
     args :: [String]
-    args = ["-c", cmd]
+    args = ["-c", toString cmd]

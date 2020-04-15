@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 {-
 
 This file is part of the package edify. It is subject to the license
@@ -30,7 +28,7 @@ import Text.Edify.Util.HeaderTree
 
 --------------------------------------------------------------------------------
 -- | Configuration to control the outline process.
-data Config = Config
+newtype Config = Config
   { outlineMaxLevel :: Int
   }
 
@@ -58,10 +56,10 @@ outline Config{..} (Pandoc m bs) = Pandoc m [transform bs]
     limit (HeaderTree info cs) out =
       if level info > outlineMaxLevel || skipBasedOnClasses info
         then out
-        else (HeaderTree info (foldr limit [] cs)) : out
+        else HeaderTree info (foldr limit [] cs) : out
 
     skipBasedOnClasses :: HeaderInfo a -> Bool
-    skipBasedOnClasses info = "unnumbered" `elem` (classes info)
+    skipBasedOnClasses info = "unnumbered" `elem` classes info
 
-    classes :: HeaderInfo a -> [String]
+    classes :: HeaderInfo a -> [Text]
     classes hi = let (_, cs, _) = attrs hi in cs

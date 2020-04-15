@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 {-
 
 This file is part of the package edify. It is subject to the license
@@ -26,8 +24,6 @@ module Text.Edify.Build.Template
 
 --------------------------------------------------------------------------------
 -- Library Imports:
-import Control.Applicative ((<|>))
-import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.Attoparsec.Text as Atto
 import qualified Data.Text as Text
 import Options.Applicative (ReadM, eitherReader)

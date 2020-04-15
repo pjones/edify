@@ -19,10 +19,9 @@ module Stitch
 
 --------------------------------------------------------------------------------
 -- Library imports.
-import           Data.Monoid
 import qualified Data.Text as T
-import           Options.Applicative
-import           System.IO
+import qualified Data.Text.IO as T
+import Options.Applicative
 
 --------------------------------------------------------------------------------
 -- Project imports.
@@ -59,10 +58,10 @@ stitch file delimiter = loadManifest file go where
 --------------------------------------------------------------------------------
 dumpFiles :: FilePath -> IO ()
 dumpFiles file = loadManifest file go where
-  go fileList = mapM_ (putStrLn . T.unpack) (files fileList)
+  go fileList = mapM_ putTextLn (files fileList)
 
 --------------------------------------------------------------------------------
 loadManifest :: FilePath -> (Manifest -> IO ()) -> IO ()
 loadManifest file f = go =<< parseFile file where
-  go (Left err)       = hPutStrLn stderr err
+  go (Left err)       = T.hPutStrLn stderr err
   go (Right fileList) = f fileList

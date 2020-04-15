@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-
 {-
 
 This file is part of the package edify. It is subject to the license
@@ -22,11 +19,7 @@ module Outline
 
 --------------------------------------------------------------------------------
 -- Library imports.
-import Control.Monad
-import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Trans.Maybe
-import Data.Monoid
-import Data.Text (Text)
+import Control.Monad (msum)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Options.Applicative
@@ -44,7 +37,7 @@ import Text.Edify.Util.Markdown (readMarkdownText)
 -- | Options for the outline command.
 data Options = Options
   { file     :: Maybe FilePath -- ^ File to read (or STDIN).
-  , timeKey  :: Maybe String   -- ^ Time codes from header attribute.
+  , timeKey  :: Maybe Text     -- ^ Time codes from header attribute.
   , timeFile :: Maybe FilePath -- ^ Time codes from a file.
   }
 
@@ -81,26 +74,24 @@ dispatch Options{..} = do
       mFile <- maybe mzero return timeFile
       dictE <- liftIO (ET.parseFile mFile)
 
-      either (liftIO . fail) return $ do
+      either (fail . toString) return $ do
         dict <- dictE
         timeTreeFromMapOrAttr dict key hs
 
     usingAttr :: [HeaderTree Text] -> MaybeT IO [TimeTree Text]
     usingAttr hs = do
       key <- maybe mzero return timeKey
-      either (liftIO . fail) return $ timeTreeFromAttr key hs
+      either (fail . toString) return $ timeTreeFromAttr key hs
 
     usingMap :: [HeaderTree Text] -> MaybeT IO [TimeTree Text]
     usingMap hs = do
       mFile <- maybe mzero return timeFile
       m     <- liftIO (ET.parseFile mFile)
-      either (liftIO . fail) return $ flip timeTreeFromMap hs =<< m
+      either (fail . toString) return $ flip timeTreeFromMap hs =<< m
 
 --------------------------------------------------------------------------------
 readFileOrStdin :: Maybe FilePath -> IO Text
-readFileOrStdin file = case file of
-  Nothing -> Text.getContents
-  Just f  -> Text.readFile f
+readFileOrStdin = maybe Text.getContents readFileText
 
 --------------------------------------------------------------------------------
 headers :: Text -> [HeaderTree Text]

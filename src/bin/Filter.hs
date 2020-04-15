@@ -19,7 +19,7 @@ module Filter
 
 --------------------------------------------------------------------------------
 -- Library imports.
-import System.Exit (die)
+import Text.Pandoc.Definition (Pandoc)
 import Text.Pandoc.JSON (toJSONFilter)
 
 --------------------------------------------------------------------------------
@@ -30,13 +30,17 @@ import Text.Edify.Filter
 -- | Pass options on to the filters.
 dispatch :: Options -> IO ()
 dispatch opts = do
-  let opts' = Options { divClassesToPromote = divClassesToPromote opts
-                      , divClassesToRemove = divClassesToRemove opts
-                      , outputVerbose = outputVerbose opts
-                      }
+    let opts' = Options
+          { divClassesToPromote = divClassesToPromote opts
+          , divClassesToRemove  = divClassesToRemove opts
+          , outputVerbose       = outputVerbose opts
+          }
 
-  toJSONFilter $ \p -> do
-    fs  <- runFilters opts' p
-    case fs of
-      Left e   -> die e
-      Right p' -> return p'
+    toJSONFilter (go opts')
+  where
+    go :: Options -> Pandoc -> IO Pandoc
+    go opts' p = do
+      fs <- runFilters opts' p
+      case fs of
+        Left e   -> die (toString e)
+        Right p' -> return p'

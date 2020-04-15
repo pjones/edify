@@ -19,26 +19,22 @@ module Text.Edify.Util.Parse
 
 --------------------------------------------------------------------------------
 -- Library imports.
-import           Data.Text (Text)
-import qualified Data.Text as T
-import qualified Data.Text.IO as T
-import           Text.Parsec hiding (parse)
-import           Text.Parsec.Text
+import Data.Attoparsec.Text hiding (parse)
 
 --------------------------------------------------------------------------------
 -- | Parse a file and return the result.
-parseFile :: Parser a -> FilePath -> IO (Either String a)
-parseFile parser file = (convert . parse) <$> T.readFile file
-  where parse   = runParser parser () file
+parseFile :: Parser a -> FilePath -> IO (Either Text a)
+parseFile parser file = convert . parse <$> readFileText file
+  where parse   = parseOnly parser
         convert = either (Left . show) Right
 
 --------------------------------------------------------------------------------
 -- | Skip whitespace.  There must be at least one whitespace character
 -- or this parser will fail.
 parseWhitespace :: Parser ()
-parseWhitespace = skipMany1 space
+parseWhitespace = many1 space $> ()
 
 --------------------------------------------------------------------------------
 -- | Parse comments.
 parseComment :: Parser Text
-parseComment = (char '#' >> T.pack <$> manyTill anyChar newline) <?> "comment"
+parseComment = (char '#' >> toText <$> manyTill anyChar endOfLine) <?> "comment"

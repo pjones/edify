@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 {-
 
 This file is part of the package edify. It is subject to the license
@@ -22,12 +20,9 @@ module Text.Edify.Util.Narrow
 
 --------------------------------------------------------------------------------
 -- Library imports.
-import Control.Monad
-import Data.Text (Text)
+import Data.Attoparsec.Text hiding (parse)
 import qualified Data.Text as T
 import Text.Pandoc.Definition (Block(..))
-import Text.Parsec hiding (token)
-import Text.Parsec.Text
 
 --------------------------------------------------------------------------------
 -- | Beginning and ending markers for narrowing.
@@ -35,18 +30,18 @@ data Markers = Markers Text Text
 
 --------------------------------------------------------------------------------
 -- | A bit of text that identifies a specific marker.
-data Token = Token Text
+newtype Token = Token Text
 
 --------------------------------------------------------------------------------
 -- | Narrow the given text using the default token delimiters.
-narrow :: Token -> Text -> Either String Text
+narrow :: Token -> Text -> Either Text Text
 narrow = narrowToToken (Markers "<<:" ":>>")
 
 --------------------------------------------------------------------------------
 -- | Narrow the given text to a beginning and ending delimiter.
-narrowToToken :: Markers -> Token -> Text -> Either String Text
+narrowToToken :: Markers -> Token -> Text -> Either Text Text
 narrowToToken m t input =
-  case runParser (narrowP m t) () "" input of
+  case parseOnly (narrowP m t) input of
     Left e     -> Left (show e)
     Right text -> Right text
 
@@ -54,17 +49,17 @@ narrowToToken m t input =
 -- | Extract the text between markers.
 narrowP :: Markers -> Token -> Parser Text
 narrowP (Markers start end) (Token token) = do
-  let beginning = string (T.unpack start) >> spaces >>
-                  string (T.unpack token) >> lookAhead space
+  let beginning = string start >> space >>
+                  string token >> space
 
   -- Skip over all characters until we hit the starting marker and the
   -- token.  Then record what comes after the token.  This is useful
   -- for languages like CSS that don't have single-line comments.
-  void (manyTill anyChar (try beginning) <?> "opening marker")
+  void (manyTill anyChar beginning) <?> "opening marker"
   after <- manyTill anyChar endOfLine
 
-  let ending = string (T.unpack end) >> spaces >>
-               string (T.unpack . T.strip . T.pack $ after)
+  let ending = string end >> space >>
+               string (T.strip . toText $ after)
 
   -- Now fetch all the characters *before* then ending marker.  Also
   -- skip the entire line that the ending marker is on.
@@ -79,7 +74,7 @@ data NarrowState = Found [Block] | Searching Block [Block]
 --------------------------------------------------------------------------------
 -- | Restrict the given list of blocks to only include those that fall
 -- under the header with the given ID.
-narrowToHeader :: String -> [Block] -> [Block]
+narrowToHeader :: Text -> [Block] -> [Block]
 narrowToHeader _      [] = []
 narrowToHeader headid xs =
   case start xs of
@@ -93,7 +88,7 @@ narrowToHeader headid xs =
     start = dropWhile (not . isMatch)
 
     end :: Block -> [Block] -> NarrowState
-    end h@Header{} bs = foldl collect (Searching h []) bs
+    end h@Header{} bs = foldl' collect (Searching h []) bs
     end h          _  = Searching h []
 
     isMatch :: Block -> Bool

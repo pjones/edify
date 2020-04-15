@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 {-
 
 This file is part of the package edify. It is subject to the license
@@ -19,8 +17,7 @@ module Text.Edify.Build.Rules
 
 --------------------------------------------------------------------------------
 -- Library Imports:
-import Control.Monad.IO.Class (liftIO)
-import Development.Shake ((%>), need, cmd, unit)
+import Development.Shake ((%>), need, command_)
 import qualified Development.Shake as Shake
 import System.Directory (renameFile)
 import System.FilePath
@@ -43,9 +40,9 @@ rules Options{..} = do
         raw = out -<.> ".rawpdf"
 
     need [ src ]
-    unit $ cmd "dot" ["-Tps", "-o", ps, src]
-    unit $ cmd (Shake.EchoStdout False) "ps2pdf"  [ps, raw]
-    unit $ cmd (Shake.EchoStdout False) "pdfcrop" [raw, out]
+    command_ [] "dot" ["-Tps", "-o", ps, src]
+    command_ [Shake.EchoStdout False] "ps2pdf"  [ps, raw]
+    command_ [Shake.EchoStdout False] "pdfcrop" [raw, out]
 
   ------------------------------------------------------------------------------
   -- SVG -> PDF:
@@ -53,12 +50,13 @@ rules Options{..} = do
     let src = srcPath out
 
     need [ src ]
-    unit $ cmd "inkscape" [ "--without-gui"
-                          , "--export-area-drawing"
-                          , "--export-pdf"
-                          , out
-                          , src
-                          ]
+    command_ [] "inkscape"
+      [ "--without-gui"
+      , "--export-area-drawing"
+      , "--export-pdf"
+      , out
+      , src
+      ]
 
   ------------------------------------------------------------------------------
   -- TEX -> PDF:
@@ -68,12 +66,13 @@ rules Options{..} = do
 
     need [ src ]
 
-    unit $ cmd "latexmk" [ "-norc"
-                         , "-quiet"
-                         , "-pdf"
-                         , "-outdir=" ++ takeDirectory out
-                         , src
-                         ]
+    command_ [] "latexmk"
+      [ "-norc"
+      , "-quiet"
+      , "-pdf"
+      , "-outdir=" ++ takeDirectory out
+      , src
+      ]
     liftIO (renameFile out' out)
 
   ------------------------------------------------------------------------------
@@ -84,9 +83,9 @@ rules Options{..} = do
         raw = out -<.> ".rawpdf"
 
     need [ src ]
-    unit $ cmd "mscgen"  ["-T", "eps", "-i", src, "-o", eps]
-    unit $ cmd (Shake.EchoStdout False) "ps2pdf"  [eps, raw]
-    unit $ cmd (Shake.EchoStdout False) "pdfcrop" [raw, out]
+    command_ [] "mscgen"  ["-T", "eps", "-i", src, "-o", eps]
+    command_ [Shake.EchoStdout False] "ps2pdf"  [eps, raw]
+    command_ [Shake.EchoStdout False] "pdfcrop" [raw, out]
 
   where
     srcPath :: FilePath -> FilePath

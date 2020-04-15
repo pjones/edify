@@ -20,7 +20,6 @@ module Text.Edify.Filter
 
 --------------------------------------------------------------------------------
 -- Library Imports:
-import Control.Monad.IO.Class (MonadIO)
 import Text.Pandoc.Definition
 import Text.Pandoc.Generic
 import Text.Pandoc.Walk
@@ -51,11 +50,11 @@ filters opts =
     makeM f b = return (f b)
 
 --------------------------------------------------------------------------------
-runFilters :: (MonadIO m)
-        => Options
-        -> Pandoc
-        -> m (Either String Pandoc)
-
+runFilters
+  :: (MonadIO m)
+  => Options
+  -> Pandoc
+  -> m (Either Text Pandoc)
 runFilters opts doc =
     runFilterT Nothing env (processPandoc doc)
   where

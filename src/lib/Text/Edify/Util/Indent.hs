@@ -18,7 +18,6 @@ module Text.Edify.Util.Indent
 --------------------------------------------------------------------------------
 -- Library imports.
 import Data.Char (isSpace)
-import Data.Text (Text)
 import qualified Data.Text as T
 
 --------------------------------------------------------------------------------

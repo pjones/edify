@@ -14,11 +14,9 @@ module Main (main) where
 
 --------------------------------------------------------------------------------
 -- Library imports.
-import           Data.Monoid
-import           Data.Version (showVersion)
+import Data.Version (showVersion)
 import qualified GHC.IO.Encoding as E
-import           Options.Applicative
-
+import Options.Applicative
 
 --------------------------------------------------------------------------------
 -- Project imports.

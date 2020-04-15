@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 {-
 
 This file is part of the package edify. It is subject to the license
@@ -20,11 +18,6 @@ module Text.Edify.Filter.Image
 
 --------------------------------------------------------------------------------
 -- Library Imports:
-import Control.Monad (guard)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.Reader.Class (ask)
-import Data.Maybe (fromMaybe)
-import Data.Traversable (traverse)
 import qualified Network.URI as URI
 import System.FilePath ((</>), (-<.>), makeRelative, isRelative, takeExtension)
 import Text.Pandoc.Definition
@@ -42,14 +35,14 @@ imageRewrite :: (MonadIO m) => Inline -> FilterT m Inline
 imageRewrite inline =
   case inline of
      Image attr ins (url, title) -> do
-       url' <- traverse update (parse url)
-       return (Image attr ins (fromMaybe url url', title))
+       url' <- traverse update (parse $ toString url)
+       return (Image attr ins (maybe url toText url', title))
      _ -> return inline
 
   where
     ----------------------------------------------------------------------------
     -- | Test to see if an image's path is a local file.
-    parse :: String -> Maybe String
+    parse :: FilePath -> Maybe FilePath
     parse str = do
       uri <- URI.parseURIReference str
       let schema = URI.uriScheme uri

@@ -22,7 +22,6 @@ module Text.Edify.Util.HeaderTree
 
 --------------------------------------------------------------------------------
 -- Library imports.
-import Data.Text (Text)
 import qualified Text.Pandoc.Class as Pandoc
 import Text.Pandoc.Definition
 import Text.Pandoc.Options

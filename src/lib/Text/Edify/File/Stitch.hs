@@ -15,10 +15,8 @@ module Text.Edify.File.Stitch (hStitch, stitch) where
 
 --------------------------------------------------------------------------------
 -- Library import.
-import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
-import System.IO
 
 --------------------------------------------------------------------------------
 -- Project imports.

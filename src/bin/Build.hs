@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 {-
 
 This file is part of the package edify. It is subject to the license

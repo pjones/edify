@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 {-
 
 This file is part of the package edify. It is subject to the license
@@ -19,8 +17,7 @@ module Text.Edify.Build.Plan
 
 --------------------------------------------------------------------------------
 -- Library Imports:
-import Data.List (intercalate)
-import Development.Shake ((%>), need, want, cmd)
+import Development.Shake ((%>), need, want, command_)
 import qualified Development.Shake as Shake
 
 --------------------------------------------------------------------------------
@@ -38,8 +35,9 @@ plan opts target@Target{..} = do
 
   targetOutputFile %> \out -> do
     need [ targetIntermediateFile ]
-    cmd "pandoc" (pandocArgsForTarget opts target out ++
-                   [targetIntermediateFile])
+    command_ [] "pandoc"
+      (pandocArgsForTarget opts target out
+       ++ [targetIntermediateFile])
 
   targetIntermediateFile %> \out -> do
     (doc, deps) <- Markdown.parse target
@@ -47,7 +45,7 @@ plan opts target@Target{..} = do
     err <- Markdown.write doc out
     case err of
       Nothing -> return ()
-      Just s  -> fail s
+      Just s  -> fail (toString s)
 
 --------------------------------------------------------------------------------
 -- | Calculate all of the flags to send to the @pandoc@ executable.

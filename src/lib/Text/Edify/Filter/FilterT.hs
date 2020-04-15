@@ -1,7 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-
 {-
 
 This file is part of the package edify. It is subject to the license
@@ -33,22 +29,13 @@ module Text.Edify.Filter.FilterT
 
 --------------------------------------------------------------------------------
 -- Library Imports:
-import Control.Monad (foldM, unless, when)
-import Control.Monad.Except (MonadError(..), ExceptT, runExceptT)
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.Reader (ReaderT, runReaderT)
-import Control.Monad.Reader.Class (MonadReader, asks)
-import Control.Monad.State.Class (MonadState, get, gets, put, modify)
-import Control.Monad.State.Lazy (StateT, evalStateT)
-import Data.Bifunctor (bimap)
+import Control.Monad.Except
 import qualified Data.Graph.Inductive.Graph as Graph
 import Data.Graph.Inductive.PatriciaTree (Gr)
 import qualified Data.Graph.Inductive.Query.DFS as Graph
-import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NonEmpty
-import Data.Maybe (catMaybes)
+import qualified Data.Text.IO as Text
 import System.FilePath ((</>), takeDirectory)
-import System.IO (hPutStrLn, stderr)
 import Text.Pandoc.Definition (Pandoc)
 
 import System.Directory ( canonicalizePath
@@ -65,7 +52,7 @@ import Text.Edify.Util.Markdown (readMarkdownFile)
 
 --------------------------------------------------------------------------------
 -- | Internal state.
-data State = State
+data FState = FState
   { stateInputFile :: NonEmpty (Int, FilePath)
     -- ^ A stack of file names currently being processed.
 
@@ -95,26 +82,27 @@ data Env m = Env
 
 --------------------------------------------------------------------------------
 -- | Filter errors.
-data Error = Error String
+data Error = Error Text
            | MissingFile FilePath
            | EmptyPopfile FilePath
-           | BadMarkdownFile FilePath String
-           | CycleFound [FilePath] String
+           | BadMarkdownFile FilePath Text
+           | CycleFound [FilePath] Text
+           deriving Show
 
-instance Show Error where
-  show (Error s) = s
-  show (MissingFile f) = "file does not exist: " ++ f
-  show (EmptyPopfile f) = "popfile called on single element stack " ++ f
-  show (BadMarkdownFile f s ) = "failed to parse markdown file " ++ f ++ " :" ++ s
-  show (CycleFound fs p) = "inclusion cycle: " ++ show fs ++ "\n" ++ p
+-- instance Show Error where
+--   show (Error s) = s
+--   show (MissingFile f) = "file does not exist: " ++ f
+--   show (EmptyPopfile f) = "popfile called on single element stack " ++ f
+--   show (BadMarkdownFile f s ) = "failed to parse markdown file " ++ f ++ " :" ++ s
+--   show (CycleFound fs p) = "inclusion cycle: " ++ show fs ++ "\n" ++ p
 
 --------------------------------------------------------------------------------
 -- | Internal monad transformer for filters.
 newtype FilterT m a = FilterT
-  { unF :: ReaderT (Env m) (StateT State (ExceptT (FilePath, Error) m)) a }
+  { unF :: ReaderT (Env m) (StateT FState (ExceptT (FilePath, Error) m)) a }
   deriving ( Functor, Applicative, Monad, MonadIO
            , MonadReader (Env m)
-           , MonadState State
+           , MonadState FState
            )
 
 --------------------------------------------------------------------------------
@@ -164,13 +152,13 @@ pushfile file = do
   let (x :| xs) = stateInputFile state
       node      = (nodeID file' state, file')
       edge      = (fst x, fst node, ())
-      state'    = State { stateInputFile = node :| (x:xs)
-                        , stateDeps = stateDeps state
-                        , stateNodeID = stateNodeID state + 1
-                        , stateInclusions = insEdge edge $
-                                              insNode node $
-                                                stateInclusions state
-                        }
+      state'    = FState { stateInputFile = node :| (x:xs)
+                          , stateDeps = stateDeps state
+                          , stateNodeID = stateNodeID state + 1
+                          , stateInclusions = insEdge edge $
+                                                insNode node $
+                                                  stateInclusions state
+                          }
 
 
   case checkForCycles (stateInclusions state') of
@@ -179,8 +167,8 @@ pushfile file = do
       liftIO (setCurrentDirectory $ takeDirectory file')
 
     (Cycles ns) -> do
-      let names = catMaybes $ map (Graph.lab $ stateInclusions state') ns
-      throwError (CycleFound names $ Graph.prettify (stateInclusions state'))
+      let names = mapMaybe (Graph.lab $ stateInclusions state') ns
+      throwError (CycleFound names $ toText $ Graph.prettify (stateInclusions state'))
 
   where
     insNode :: Graph.LNode FilePath -> Gr FilePath () -> Gr FilePath ()
@@ -191,7 +179,7 @@ pushfile file = do
     insEdge e g | Graph.hasLEdge g e = g
                 | otherwise          = Graph.insEdge e g
 
-    nodeID :: FilePath -> State -> Int
+    nodeID :: FilePath -> FState -> Int
     nodeID path state =
       let nodes = Graph.labNodes (stateInclusions state) in
       case filter (\(_,p) -> p == path) nodes of
@@ -205,8 +193,9 @@ popfile :: (MonadIO m) => FilterT m ()
 popfile = do
   (x :| xs) <- gets stateInputFile
   when (null xs) $ throwError (EmptyPopfile (snd x))
-  modify (\s -> s {stateInputFile = head xs :| tail xs})
-  liftIO (setCurrentDirectory . takeDirectory . snd $ head xs)
+  let file = NonEmpty.fromList xs
+  modify (\s -> s {stateInputFile = file})
+  liftIO (setCurrentDirectory . takeDirectory . snd $ head file)
 
 --------------------------------------------------------------------------------
 -- | Transform the given 'FilePath' so that it's an absolute path with
@@ -236,7 +225,7 @@ processPandoc doc = do
 -- | Load and filter the given Markdown file.
 processFile :: (MonadIO m) => FilePath -> FilterT m Pandoc
 processFile file = do
-  verbose ("processing markdown file: " ++ file)
+  verbose ("processing markdown file: " <> toText file)
   cleanFile <- realpath file
   exist <- liftIO (doesFileExist cleanFile)
   unless exist (throwError $ MissingFile cleanFile)
@@ -250,20 +239,20 @@ processFile file = do
   updated <- processPandoc doc
   popfile
 
-  verbose ("done processing markdown file: " ++ file)
+  verbose ("done processing markdown file: " <> toText file)
   return updated
 
 --------------------------------------------------------------------------------
 -- | Emit verbose messages.
-verbose :: (MonadIO m) => String -> FilterT m ()
+verbose :: (MonadIO m) => Text -> FilterT m ()
 verbose msg = do
   enabled <- asks (outputVerbose . envOptions)
-  when enabled (liftIO $ hPutStrLn stderr msg)
+  when enabled (liftIO $ Text.hPutStrLn stderr msg)
 
 --------------------------------------------------------------------------------
 -- | Produce a helpful error message.
-errorMessage :: (FilePath, Error) -> String
-errorMessage (f, e) = "while processing file " ++ f ++ ": " ++ show e
+errorMessage :: (FilePath, Error) -> Text
+errorMessage (f, e) = "while processing file " <> toText f <> ": " <> show e
 
 --------------------------------------------------------------------------------
 -- | Run a 'FilterT' operation.
@@ -278,7 +267,7 @@ runFilterT :: forall m a. (MonadIO m)
            -> FilterT m a
            -- ^ The filter operation to run.
 
-           -> m (Either String a)
+           -> m (Either Text a)
            -- ^ Results or error message.
 
 runFilterT Nothing fs f = do
@@ -294,7 +283,7 @@ runFilterT (Just file) env f = do
              runReaderT (unF f) env
 
     liftIO (setCurrentDirectory startDir)
-    return (bimap errorMessage id x)
+    return (first errorMessage x)
 
   where
     -- action :: (Monad m) => FilterT m ()
@@ -307,10 +296,10 @@ runFilterT (Just file) env f = do
     --   unless (isAbsolute bdir) $ throwError . Error $
     --     "base directory isn't absolute"
 
-    initS :: FilePath -> State
+    initS :: FilePath -> FState
     initS path = let node = (1, path) in
-      State { stateInputFile = pure node
-            , stateInclusions = Graph.insNode node Graph.empty
-            , stateNodeID = 2
-            , stateDeps = []
-            }
+      FState { stateInputFile = pure node
+              , stateInclusions = Graph.insNode node Graph.empty
+              , stateNodeID = 2
+              , stateDeps = []
+              }

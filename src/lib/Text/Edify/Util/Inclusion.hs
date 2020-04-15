@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 {-
 
 This file is part of the package edify. It is subject to the license
@@ -19,40 +17,34 @@ module Text.Edify.Util.Inclusion
 
 --------------------------------------------------------------------------------
 -- Library imports.
-import Data.List (span)
-import Text.Parsec
-import Text.Parsec.String
+import qualified Data.Attoparsec.Text as Atto
+import Data.Attoparsec.Text hiding (parse)
+import qualified Data.Text as Text
 
 --------------------------------------------------------------------------------
 -- | A path to a file, and optional header ID.
-data FileRef = FileRef FilePath (Maybe String)
+data FileRef = FileRef Text (Maybe Text)
                deriving (Show, Eq)
 
 --------------------------------------------------------------------------------
 -- | Try to extract a file name from a string if it contains and
 -- inclusion marker.
-inclusionMarker :: String -> Maybe FileRef
+inclusionMarker :: Text -> Maybe FileRef
 inclusionMarker s =
-  case runParser inclusionMarkerParser () "" s of
+  case Atto.parseOnly inclusionMarkerParser s of
     Left _  -> Nothing
-    Right f -> Just (ref f)
+    Right f -> Just (ref $ toText f)
 
   where
-    ref :: String -> FileRef
-    ref path = case span (/= '#') path of
-                 (name, [])  -> FileRef name Nothing
-                 (name, hid) -> FileRef name (cleanID hid)
-  
-    cleanID :: String -> Maybe String
-    cleanID [_]      = Nothing
-    cleanID ('#':xs) = Just xs
-    cleanID _        = Nothing
-    
+    ref :: Text -> FileRef
+    ref path =
+      let (name, hid) = Text.span (/= '#') path
+      in FileRef name (Text.stripPrefix "#" hid)
+
 --------------------------------------------------------------------------------
 -- | Parsec parser for inclusion markers.
 inclusionMarkerParser :: Parser FilePath
-inclusionMarkerParser =
-  spaces             *>
-  string "<<("       *>
-  many1 (noneOf ")") <*
-  char ')'
+inclusionMarkerParser = do
+  skipSpace
+  void (string "<<(")
+  many1 (notChar ')') <* char ')'

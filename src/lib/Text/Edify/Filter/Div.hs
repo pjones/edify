@@ -18,28 +18,28 @@ module Text.Edify.Filter.Div
 
 --------------------------------------------------------------------------------
 -- Library imports.
-import Data.List
+import Data.List (delete)
 import Text.Pandoc
 
 --------------------------------------------------------------------------------
 -- | Promote a @div@ by removing a class name.  This is useful for
 -- including slide notes in a handout by removing the @notes@ class.
-promoteDivByClass :: [String] -> Block -> Block
+promoteDivByClass :: [Text] -> Block -> Block
 promoteDivByClass cls (Div attr bs) = Div (foldr removeClass attr cls) bs
 promoteDivByClass _ x               = x
 
 --------------------------------------------------------------------------------
-removeDivByClass :: [String] -> Block -> Block
+removeDivByClass :: [Text] -> Block -> Block
 removeDivByClass cls d@(Div attr _) = if any (attrHasClass attr) cls
                                         then Null else d
 removeDivByClass _ x = x
 
 --------------------------------------------------------------------------------
 -- | Remove a class name from the given attributes.
-removeClass :: String -> Attr -> Attr
+removeClass :: Text -> Attr -> Attr
 removeClass cls (x, cs, y) = (x, delete cls cs, y)
 
 --------------------------------------------------------------------------------
 -- | Test to see if a attribute has a given class name set.
-attrHasClass :: Attr -> String -> Bool
+attrHasClass :: Attr -> Text -> Bool
 attrHasClass (_, cs, _) cls = cls `elem` cs

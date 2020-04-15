@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 {-
 
 This file is part of the package edify. It is subject to the license
@@ -21,8 +19,6 @@ module Text.Edify.Build.Target
 
 --------------------------------------------------------------------------------
 -- Library Imports:
-import Control.Monad (forM)
-import Control.Monad.IO.Class (MonadIO, liftIO)
 import System.FilePath ((</>), (<.>))
 
 --------------------------------------------------------------------------------
@@ -87,7 +83,7 @@ filterEnvFromTarget Target{..} =
 
 --------------------------------------------------------------------------------
 -- | Generate a list of 'Target' values from the command-line options.
-targetsFromOptions :: (MonadIO m) => Options -> m [Target]
+targetsFromOptions :: (MonadIO m, MonadFail m) => Options -> m [Target]
 targetsFromOptions Options{..} = do
     projectDir <- maybe findBaseDirectory return optionsProjectDirectory
     variables  <- pandocVariables

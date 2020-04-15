@@ -17,7 +17,6 @@ module Text.Edify.Build.FilePath
 
 --------------------------------------------------------------------------------
 -- Library Imports:
-import Control.Monad.IO.Class (MonadIO, liftIO)
 import System.Directory (getCurrentDirectory, doesPathExist)
 import System.FilePath ((</>), takeDirectory)
 
@@ -33,10 +32,10 @@ projectFiles =
 --------------------------------------------------------------------------------
 -- | Find the base directory by walking up the file system and looking
 -- for known files that indicate the top of a project.
-findBaseDirectory :: (MonadIO m) => m FilePath
+findBaseDirectory :: forall m. (MonadIO m, MonadFail m) => m FilePath
 findBaseDirectory = liftIO getCurrentDirectory >>= go
   where
-    go :: (MonadIO m) => FilePath -> m FilePath
+    go :: FilePath -> m FilePath
     go "/" = fail "unable to find the top-level dir, use --top"
     go dir = do
       exist <- multiExist dir projectFiles

@@ -16,7 +16,6 @@ module TimeCodeTest (tests) where
 
 --------------------------------------------------------------------------------
 -- Library imports.
-import Data.Text (Text)
 import Test.Tasty
 import Test.Tasty.HUnit
 
