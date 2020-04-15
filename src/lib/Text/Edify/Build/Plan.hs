@@ -19,24 +19,26 @@ module Text.Edify.Build.Plan
 
 --------------------------------------------------------------------------------
 -- Library Imports:
+import Data.List (intercalate)
 import Development.Shake ((%>), need, want, cmd)
 import qualified Development.Shake as Shake
 
 --------------------------------------------------------------------------------
 -- Project Imports:
 import qualified Text.Edify.Build.Markdown as Markdown
+import Text.Edify.Build.Options (Options(..))
 import Text.Edify.Build.Target (Target(..))
 import Text.Edify.Build.Template
 
 --------------------------------------------------------------------------------
 -- | Given a 'Target', generate all output files as needed.
-plan :: Target -> Shake.Rules ()
-plan target@Target{..} = do
+plan :: Options -> Target -> Shake.Rules ()
+plan opts target@Target{..} = do
   want [ targetOutputFile ]
 
   targetOutputFile %> \out -> do
     need [ targetIntermediateFile ]
-    cmd "pandoc" (pandocArgsForTarget target out ++
+    cmd "pandoc" (pandocArgsForTarget opts target out ++
                    [targetIntermediateFile])
 
   targetIntermediateFile %> \out -> do
@@ -49,8 +51,8 @@ plan target@Target{..} = do
 
 --------------------------------------------------------------------------------
 -- | Calculate all of the flags to send to the @pandoc@ executable.
-pandocArgsForTarget :: Target -> FilePath -> [String]
-pandocArgsForTarget Target{..} out =
+pandocArgsForTarget :: Options -> Target -> FilePath -> [String]
+pandocArgsForTarget Options{..} Target{..} out =
   case (targetOutputFormat, targetTemplateStyle) of
     (PDF, Handout) -> basic ++ pdfHandout
     (PDF, Slides)  -> basic ++ beamer
@@ -58,7 +60,7 @@ pandocArgsForTarget Target{..} out =
 
   where
     basic =
-      [ "--from=markdown"
+      [ "--from=markdown" ++ extensions
       , "--filter=pandoc-citeproc"
       , "--output", out
       ] ++ templateFile ++ variables
@@ -84,3 +86,7 @@ pandocArgsForTarget Target{..} out =
     variables =
       map (\(k, v) -> "--variable=" ++ k ++ ":" ++ v)
         targetPandocVariables
+
+    extensions =
+      if null optionsMarkdownExtensions then ""
+      else "+" ++ intercalate "+" optionsMarkdownExtensions

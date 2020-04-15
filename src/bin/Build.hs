@@ -40,4 +40,4 @@ dispatch opts = do
   shake shakeOptions { shakeFiles = optionsOutputDirectory opts
                      , shakeVerbosity = Shake.Normal
                      } $
-    Build.rules opts >> mapM_ Build.plan targets
+    Build.rules opts >> mapM_ (Build.plan opts) targets
