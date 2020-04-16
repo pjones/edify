@@ -33,7 +33,7 @@ let
     # For packaging:
     zip
 
-  ] ++ [ edify ];
+  ] ++ [ edify.bin ];
 
   # Helper function to copy files to a destination:
   copyFiles = files: dest:
