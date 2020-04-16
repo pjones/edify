@@ -37,6 +37,7 @@ import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Text.IO as Text
 import System.FilePath ((</>), takeDirectory)
 import Text.Pandoc.Definition (Pandoc)
+import qualified Text.Pandoc.Extensions as Pandoc
 
 import System.Directory ( canonicalizePath
                         , getCurrentDirectory
@@ -78,6 +79,7 @@ data Env m = Env
   , envFormat  :: OutputFormat
   , envOutputDirectory :: Maybe FilePath
   , envProjectDirectory :: Maybe FilePath
+  , envPandocExts :: Pandoc.Extensions
   }
 
 --------------------------------------------------------------------------------
@@ -229,7 +231,8 @@ processFile file = do
   cleanFile <- realpath file
   exist <- liftIO (doesFileExist cleanFile)
   unless exist (throwError $ MissingFile cleanFile)
-  markdown <- readMarkdownFile cleanFile
+  exts <- asks envPandocExts
+  markdown <- readMarkdownFile exts cleanFile
 
   doc <- case markdown of
            Left e  -> throwError (BadMarkdownFile file e)

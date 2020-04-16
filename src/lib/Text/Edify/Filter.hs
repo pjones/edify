@@ -33,6 +33,7 @@ import Text.Edify.Filter.FilterT (FilterT, Env(..), runFilterT, processPandoc)
 import Text.Edify.Filter.Image (imageRewrite)
 import Text.Edify.Filter.Insert (insertFile, insertParsedFile)
 import Text.Edify.Filter.Options
+import Text.Edify.Util.Markdown (toPandocExtensions)
 
 --------------------------------------------------------------------------------
 filters :: (MonadIO m) => Options -> [Pandoc -> FilterT m Pandoc]
@@ -65,4 +66,5 @@ runFilters opts doc =
           , envFormat  = Markdown
           , envOutputDirectory = Nothing
           , envProjectDirectory = Nothing
+          , envPandocExts = toPandocExtensions (markdownExtensions opts)
           }

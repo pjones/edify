@@ -5,9 +5,8 @@
 with pkgs.lib;
 
 let
-
   # The edify package:
-  edify = pkgs.haskellPackages.callPackage ../edify.nix { };
+  edify = import ../default.nix { inherit pkgs; };
 
   # All build dependencies:
   buildDeps = with pkgs; [
@@ -51,17 +50,20 @@ let
     , buildInputs  ? [ ]
     , buildPhase   ? ""
     , installPhase ? ""
+    , extensions   ? [ ]
     , ...
     }@args: pkgs.stdenv.mkDerivation (args // {
       inherit phases;
 
       buildInputs = buildDeps ++ buildInputs;
 
-      buildPhase = ''
-        echo "==> edify ${courses}"
-        ${buildPhase}
-        edify build --top "$(pwd)" ${courses}
-      '';
+      buildPhase =
+        let exts = concatMapStringsSep " " (e: "--extension ${e}") extensions;
+        in ''
+          echo "==> edify ${courses}"
+          ${buildPhase}
+          edify build --top "$(pwd)" ${exts} ${courses}
+        '';
 
       installPhase = ''
         dest=$out/${name}

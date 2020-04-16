@@ -49,21 +49,22 @@ narrowToToken m t input =
 -- | Extract the text between markers.
 narrowP :: Markers -> Token -> Parser Text
 narrowP (Markers start end) (Token token) = do
-  let beginning = string start >> space >>
-                  string token >> space
+  let beginning = string start >> many1 space >>
+                  string token >> many space
 
   -- Skip over all characters until we hit the starting marker and the
   -- token.  Then record what comes after the token.  This is useful
   -- for languages like CSS that don't have single-line comments.
   void (manyTill anyChar beginning) <?> "opening marker"
-  after <- manyTill anyChar endOfLine
+  after <- manyTill anyChar endOfLine <&> T.strip . toText
 
-  let ending = string end >> space >>
-               string (T.strip . toText $ after)
+  let ending = do
+        c <- string end *> space
+        unless (isEndOfLine c) (skipSpace <* string after)
 
   -- Now fetch all the characters *before* then ending marker.  Also
   -- skip the entire line that the ending marker is on.
-  text <- manyTill anyChar (try ending) <?> "closing marker"
+  text <- manyTill anyChar ending <?> "closing marker"
   return (T.dropWhileEnd (/= '\n') . T.pack $ text)
 
 --------------------------------------------------------------------------------

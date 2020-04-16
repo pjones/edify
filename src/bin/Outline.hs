@@ -31,7 +31,7 @@ import qualified Text.Edify.File.Time as ET
 import Text.Edify.Time.TimeCode
 import Text.Edify.Time.TimeTree
 import Text.Edify.Util.HeaderTree
-import Text.Edify.Util.Markdown (readMarkdownText)
+import Text.Edify.Util.Markdown (readMarkdownText, defaultPandocExtensions)
 
 --------------------------------------------------------------------------------
 -- | Options for the outline command.
@@ -95,7 +95,7 @@ readFileOrStdin = maybe Text.getContents readFileText
 
 --------------------------------------------------------------------------------
 headers :: Text -> [HeaderTree Text]
-headers content = case readMarkdownText content of
+headers content = case readMarkdownText defaultPandocExtensions content of
   Left _             -> []
   Right (Pandoc _ x) -> headerTree x
 

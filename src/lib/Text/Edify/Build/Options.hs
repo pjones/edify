@@ -45,9 +45,6 @@ data Options = Options
   , optionsTemplates :: [Template]
     -- ^ A list of templates to build.
 
-  , optionsMarkdownExtensions :: [String]
-    -- ^ List of markdown extensions to enable.
-
   , optionsInputFiles :: [FilePath]
     -- ^ A list of input Markdown files to process.
   }
@@ -62,7 +59,6 @@ options = Options <$> Filter.options
                            , BuiltinTemplate PDF Slides
                            , BuiltinTemplate PDF Outline
                            ]
-                  <*> many (option str extensionsOpt)
                   <*> many (argument str (metavar "FILE"))
 
   where
@@ -74,7 +70,3 @@ options = Options <$> Filter.options
     projectDirOpt =
       long "top" <> metavar "DIR" <>
       help "The top-level project directory"
-
-    extensionsOpt =
-      long "markdown-extension" <> metavar "NAME" <>
-      help "Enable the named markdown extension"

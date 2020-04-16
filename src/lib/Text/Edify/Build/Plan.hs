@@ -24,8 +24,10 @@ import qualified Development.Shake as Shake
 -- Project Imports:
 import qualified Text.Edify.Build.Markdown as Markdown
 import Text.Edify.Build.Options (Options(..))
-import Text.Edify.Build.Target (Target(..))
+import Text.Edify.Build.Target (Target(..), targetMarkdownExtensions)
 import Text.Edify.Build.Template
+import qualified Text.Edify.Filter as Filter
+import qualified Text.Edify.Util.Markdown as Markdown
 
 --------------------------------------------------------------------------------
 -- | Given a 'Target', generate all output files as needed.
@@ -42,7 +44,7 @@ plan opts target@Target{..} = do
   targetIntermediateFile %> \out -> do
     (doc, deps) <- Markdown.parse target
     need (targetInputFile:deps)
-    err <- Markdown.write doc out
+    err <- Markdown.writeMarkdownFile (targetMarkdownExtensions target) doc out
     case err of
       Nothing -> return ()
       Just s  -> fail (toString s)
@@ -86,5 +88,5 @@ pandocArgsForTarget Options{..} Target{..} out =
         targetPandocVariables
 
     extensions =
-      if null optionsMarkdownExtensions then ""
-      else "+" ++ intercalate "+" optionsMarkdownExtensions
+      let exts = Filter.markdownExtensions optionsFilter
+      in if null exts then "" else "+" ++ intercalate "+" (map toString exts)

@@ -13,7 +13,6 @@ the LICENSE.md file.
 -- | Simple utility functions for parsing/generating Markdown via Pandoc.
 module Text.Edify.Build.Markdown
   ( parse
-  , write
   ) where
 
 --------------------------------------------------------------------------------
@@ -27,7 +26,6 @@ import Text.Edify.Build.Target (Target(..), filterEnvFromTarget)
 import Text.Edify.Build.Template (TemplateStyle(..))
 import qualified Text.Edify.Filter.FilterT as Filter
 import qualified Text.Edify.Rewrite.Outline as Rewrite
-import qualified Text.Edify.Util.Markdown as Markdown
 
 --------------------------------------------------------------------------------
 -- | Parse a Markdown file and process it through the Edify filter
@@ -54,8 +52,3 @@ parse target@Target{..} = do
         Handout -> return (doc, deps)
         Slides  -> return (doc, deps)
         Outline -> return (Rewrite.outline def doc, deps)
-
---------------------------------------------------------------------------------
--- | Generate a Markdown file from a 'Pandoc' object.
-write :: (MonadIO m) => Pandoc -> FilePath -> m (Maybe Text)
-write = Markdown.writeMarkdownFile

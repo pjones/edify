@@ -13,6 +13,7 @@ the LICENSE.md file.
 -- | Information about an output file generated from Markdown.
 module Text.Edify.Build.Target
   ( Target(..)
+  , targetMarkdownExtensions
   , filterEnvFromTarget
   , targetsFromOptions
   ) where
@@ -20,6 +21,7 @@ module Text.Edify.Build.Target
 --------------------------------------------------------------------------------
 -- Library Imports:
 import System.FilePath ((</>), (<.>))
+import qualified Text.Pandoc.Extensions as Pandoc
 
 --------------------------------------------------------------------------------
 -- Project Imports:
@@ -29,6 +31,7 @@ import Text.Edify.Build.Options
 import Text.Edify.Build.Template
 import qualified Text.Edify.Filter as Filter
 import Text.Edify.Filter.FilterT (Env(..))
+import Text.Edify.Util.Markdown
 
 --------------------------------------------------------------------------------
 -- | All the details needed to build a single output file.
@@ -70,15 +73,22 @@ data Target = Target
   }
 
 --------------------------------------------------------------------------------
+-- | Return the extensions in use for the given target.
+targetMarkdownExtensions :: Target -> Pandoc.Extensions
+targetMarkdownExtensions Target{..} =
+  toPandocExtensions (Filter.markdownExtensions targetFilterOptions)
+
+--------------------------------------------------------------------------------
 -- | Given a 'Target' object, generate the 'Env' object needed to run
 -- the filter process.
 filterEnvFromTarget :: (MonadIO m) => Target -> Env m
-filterEnvFromTarget Target{..} =
+filterEnvFromTarget target@Target{..} =
   Env { envFilters = Filter.filters targetFilterOptions
       , envOptions = targetFilterOptions
       , envFormat  = targetOutputFormat
       , envOutputDirectory = Just targetOutputDirectory
       , envProjectDirectory = Just targetProjectDirectory
+      , envPandocExts = targetMarkdownExtensions target
       }
 
 --------------------------------------------------------------------------------

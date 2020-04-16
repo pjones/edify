@@ -25,6 +25,7 @@ data Options = Options
   { divClassesToPromote :: [Text]
   , divClassesToRemove  :: [Text]
   , outputVerbose       :: Bool
+  , markdownExtensions  :: [Text]
   }
 
 --------------------------------------------------------------------------------
@@ -34,6 +35,7 @@ options =
   Options <$> many (strOption promoteCls)
           <*> many (strOption removeCls)
           <*> switch verbose
+          <*> many (option str extensionsOpt)
   where
     promoteCls =
       long "promote" <> metavar "CLASS" <>
@@ -46,3 +48,7 @@ options =
     verbose =
       long "verbose" <>
       help "Enable verbose output"
+
+    extensionsOpt =
+      long "extension" <> metavar "NAME" <>
+      help "Enable the named markdown extension"

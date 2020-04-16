@@ -25,6 +25,7 @@ import Text.Edify.Filter.FilterT (FilterT)
 import qualified Text.Edify.Filter.FilterT as FilterT
 import qualified Text.Edify.Filter.Options as FilterT
 import Text.Edify.Util.Inclusion
+import Text.Edify.Util.Markdown (defaultPandocExtensions)
 
 --------------------------------------------------------------------------------
 tests :: TestTree
@@ -70,12 +71,14 @@ cycleSpec = do
                        , FilterT.envFormat           = Markdown
                        , FilterT.envOutputDirectory  = Just "test"
                        , FilterT.envProjectDirectory = Just "."
+                       , FilterT.envPandocExts       = defaultPandocExtensions
                        }
 
     opts :: FilterT.Options
     opts  = FilterT.Options { FilterT.divClassesToPromote = []
                             , FilterT.divClassesToRemove  = []
                             , FilterT.outputVerbose       = False
+                            , FilterT.markdownExtensions  = []
                             }
 
 --------------------------------------------------------------------------------

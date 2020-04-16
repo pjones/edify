@@ -101,13 +101,8 @@ generateIntermediateFileName style file =
 resolveTemplate :: (MonadIO m)
                 => Template
                 -> m (Maybe FilePath, OutputFormat, TemplateStyle)
-
 resolveTemplate (BuiltinTemplate PDF style) = do
   dir <- (</> "data/templates") <$> liftIO getDataDir
-  return $ case style of
-             Handout -> (Just (dir </> "handout.tex"), PDF, style)
-             Slides  -> (Just (dir </> "slides.tex" ), PDF, style)
-             Outline -> (Just (dir </> "handout.tex"), PDF, style)
-
+  return (Just (dir </> "default.latex"), PDF, style)
 resolveTemplate (BuiltinTemplate format style) =
   return (Nothing, format, style)

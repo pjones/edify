@@ -17,6 +17,8 @@ module Text.Edify.Util.Markdown
   , readMarkdownText
   , readMarkdownFile
   , writeMarkdownFile
+  , defaultPandocExtensions
+  , toPandocExtensions
   ) where
 
 --------------------------------------------------------------------------------
@@ -31,42 +33,63 @@ import qualified Text.Pandoc.Templates as Pandoc
 import Text.Pandoc.Writers.Markdown (writeMarkdown)
 
 --------------------------------------------------------------------------------
-readerOptions :: ReaderOptions
-readerOptions =
+defaultPandocExtensions :: Pandoc.Extensions
+defaultPandocExtensions = mconcat
+  [ Pandoc.pandocExtensions
+  , Pandoc.githubMarkdownExtensions
+  ]
+
+--------------------------------------------------------------------------------
+-- | Turn a list of extension names into the 'Extension' type by
+-- prepending @Ext_@ and reading the type.
+toPandocExtensions :: [Text] -> Pandoc.Extensions
+toPandocExtensions ts =
+  defaultPandocExtensions
+    <> Pandoc.extensionsFromList (mapMaybe toExt ts)
+  where
+    toExt :: Text -> Maybe Pandoc.Extension
+    toExt = ("Ext_" <>) >>> toString >>> readMaybe
+
+--------------------------------------------------------------------------------
+readerOptions :: Pandoc.Extensions -> ReaderOptions
+readerOptions ext =
   def { readerStandalone = True
-      , readerExtensions = mconcat
-                             [ Pandoc.pandocExtensions
-                             , Pandoc.githubMarkdownExtensions
-                             ]
+      , readerExtensions = ext
       }
 
 --------------------------------------------------------------------------------
-writerOptions :: WriterOptions
-writerOptions =
-  def { writerExtensions = mconcat
-                           [ Pandoc.pandocExtensions
-                           ]
+writerOptions :: Pandoc.Extensions -> WriterOptions
+writerOptions ext =
+  def { writerExtensions = ext
       }
 
 --------------------------------------------------------------------------------
-readMarkdownText :: Text -> Either Text Pandoc
-readMarkdownText t =
-  case Pandoc.runPure $ readMarkdown readerOptions t of
+readMarkdownText :: Pandoc.Extensions -> Text -> Either Text Pandoc
+readMarkdownText e t =
+  case Pandoc.runPure $ readMarkdown (readerOptions e) t of
     Left e  -> Left (show e)
     Right p -> Right p
 
 --------------------------------------------------------------------------------
-readMarkdownFile :: (MonadIO m) => FilePath -> m (Either Text Pandoc)
-readMarkdownFile path = do
-  str <- liftIO (Text.readFile path)
-  return (readMarkdownText str)
+readMarkdownFile
+  :: MonadIO m
+  => Pandoc.Extensions
+  -> FilePath
+  -> m (Either Text Pandoc)
+readMarkdownFile ext path =
+  readFileText path <&> readMarkdownText ext
 
 --------------------------------------------------------------------------------
-writeMarkdownFile :: (MonadIO m) => Pandoc -> FilePath -> m (Maybe Text)
-writeMarkdownFile doc file = liftIO $ do
+writeMarkdownFile
+  :: MonadIO m
+  => Pandoc.Extensions
+  -> Pandoc
+  -> FilePath
+  -> m (Maybe Text)
+writeMarkdownFile ext doc file = liftIO $ do
     result <- Pandoc.runIO $ do
       template <- Pandoc.compileDefaultTemplate "markdown"
-      let opts = writerOptions { writerTemplate = Just template}
+      let opts = (writerOptions ext) { writerTemplate = Just template}
       writeMarkdown opts doc
 
     case result of
