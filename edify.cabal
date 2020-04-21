@@ -1,6 +1,6 @@
 cabal-version: 2.2
 name:          edify
-version:       0.4.0.0
+version:       0.4.1.0
 synopsis:      Markdown (via pandoc) processing and content tools for Devalot.com
 license:       BSD-3-Clause
 license-file:  LICENSE.md

@@ -51,6 +51,7 @@ let
     , buildPhase   ? ""
     , installPhase ? ""
     , extensions   ? [ ]
+    , pandocFlags  ? [ ]
     , ...
     }@args: pkgs.stdenv.mkDerivation (args // {
       inherit phases;
@@ -59,10 +60,11 @@ let
 
       buildPhase =
         let exts = concatMapStringsSep " " (e: "--extension ${e}") extensions;
+            flgs = concatMapStringsSep " " (f: "--pandoc ${f}") pandocFlags;
         in ''
           echo "==> edify ${courses}"
           ${buildPhase}
-          edify build --top "$(pwd)" ${exts} ${courses}
+          edify build --top "$(pwd)" ${exts} ${flgs} ${courses}
         '';
 
       installPhase = ''
