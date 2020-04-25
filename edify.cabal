@@ -71,8 +71,8 @@ common dependencies
                , mtl                  >= 2.2  && < 2.3
                , network-uri          >= 2.5  && < 2.7
                , optparse-applicative >= 0.7  && < 1.0
-               , pandoc               >= 2.0  && < 2.10
-               , pandoc-types         >= 1.17 && < 2.0
+               , pandoc               >= 2.9  && < 2.10
+               , pandoc-types         >= 1.20 && < 2.0
                , process              >= 1.1  && < 2.0
                , relude               >= 0.5  && < 0.7
                , shake                >= 0.15 && < 0.19

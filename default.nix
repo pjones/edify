@@ -1,20 +1,26 @@
-{ pkgs ? import nix/nixpkgs.nix
+{ sources ? import ./nix/sources.nix
+, pkgs ? import sources.nixpkgs { }
+, nix-hs ? import sources.nix-hs { inherit pkgs; }
+, ghcide ? sources.ghcide-nix
+, ormolu ? sources.ormolu
+, ghc ? "default"
 }:
 
-let
-  nix-hs = import (fetchGit {
-    url = "https://code.devalot.com/open/nix-hs.git";
-    rev = "ab8f15a5a84d0d685c42e8fcfec3cf34755b562f";
-    ref = "next";
-  }) { inherit pkgs; };
-
-in nix-hs {
+nix-hs {
   cabal = ./edify.cabal;
+  compiler = ghc;
 
   overrides = lib: self: super: with lib; {
-    ghcide = (import (builtins.fetchGit {
-      url = "https://code.devalot.com/pjones/ghcide-nix.git";
-      rev = "471990016e47f6eaab5d6aeeb2da6f58aa581bb7";
-    })) {};
+    relude =
+      if super ? relude_0_6_0_0
+        then super.relude_0_6_0_0
+        else super.relude;
+
+    ghcide = import ghcide {};
+
+    ormolu = (import ormolu {
+      inherit (lib) pkgs;
+      ormoluCompiler = lib.compilerName;
+    }).ormolu;
   };
 }

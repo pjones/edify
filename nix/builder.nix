@@ -1,4 +1,5 @@
-{ pkgs ? import ./nixpkgs.nix
+{ sources ? import ./sources.nix
+, pkgs ? import sources.nixpkgs {}
 }:
 
 # Import library functions from nixpkgs:
