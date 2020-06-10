@@ -45,6 +45,7 @@ newtype Token = Token
 --
 -- @since 0.5.0.0
 newtype NarrowError = NarrowError String
+  deriving (Show, Eq)
 
 -- | Narrow the given text using the default token delimiters.
 --
@@ -68,7 +69,7 @@ narrowWith m t input =
 -- @since 0.5.0.0
 narrowP :: Markers -> Token -> Atto.Parser Text
 narrowP (Markers mstart mend) (Token token) = do
-  let beginning = do
+  let openP = do
         _ <- Atto.string mstart
         _ <- Atto.many1 Atto.space
         _ <- Atto.string token
@@ -78,7 +79,7 @@ narrowP (Markers mstart mend) (Token token) = do
             pure ()
           else -- Found token with same prefix, backtrack.
             empty
-      ending = do
+      closeP = do
         _ <- Atto.string mend
         c <- Atto.peekChar' <|> pure '\n'
         if isSpace c
@@ -91,14 +92,19 @@ narrowP (Markers mstart mend) (Token token) = do
   -- Skip over all characters until we hit the starting marker and the
   -- token.
   _ <-
-    Atto.manyTill Atto.anyChar beginning
-      Atto.<?> ("opening marker " <> toString mstart)
+    Atto.manyTill Atto.anyChar openP
+      Atto.<?> ( "opening marker ("
+                   <> toString mstart
+                   <> " "
+                   <> toString token
+                   <> ")"
+               )
 
   -- Skill all other characters on the current line.
   _ <- Atto.manyTill Atto.anyChar Atto.endOfLine
 
   -- Now fetch all the characters *before* the ending marker.  Also
   -- skip the entire line that the ending marker is on.
-  Atto.manyTill Atto.anyChar ending
+  Atto.manyTill Atto.anyChar closeP
     <&> (toText >>> Text.dropWhileEnd (/= '\n'))
-    Atto.<?> ("closing marker " <> toString mend)
+    Atto.<?> ("closing marker (" <> toString mend <> ")")

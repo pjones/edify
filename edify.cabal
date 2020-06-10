@@ -54,6 +54,7 @@ common dependencies
   build-depends:
     , attoparsec  ^>=0.13
     , base        >=4.13 && <5.0
+    , filepath    ^>=1.4
     , relude      >=0.6  && <0.8
     , text        ^>=1.2
 
@@ -76,13 +77,14 @@ library
 --   build-depends:  edify
 
 ------------------------------------------------------------------------------
--- test-suite test
---   import:         options, extensions, dependencies
---   type:           exitcode-stdio-1.0
---   hs-source-dirs: test
---   main-is:        Main.hs
---   other-modules:
---   build-depends:
---     , edify
---     , tasty        >=1.2
---     , tasty-hunit  >=0.10
+test-suite test
+  import:         options, extensions, dependencies
+  type:           exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is:        Main.hs
+  other-modules:  NarrowTest
+  build-depends:
+    , edify
+    , tasty         >=1.2
+    , tasty-golden  ^>=2.3
+    , tasty-hunit   ^>=0.10
