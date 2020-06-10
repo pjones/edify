@@ -41,6 +41,7 @@ common options
 --------------------------------------------------------------------------------
 common extensions
   default-extensions:
+    DerivingStrategies
     GeneralizedNewtypeDeriving
     LambdaCase
     MultiParamTypeClasses
@@ -50,7 +51,12 @@ common extensions
 
 --------------------------------------------------------------------------------
 common dependencies
-  build-depends: base
+  build-depends:
+    , attoparsec  ^>=0.13
+    , base        >=4.13 && <5.0
+    , relude      >=0.6  && <0.8
+    , text        ^>=1.2
+
   mixins:
     base hiding (Prelude),
     relude (Relude as Prelude)
@@ -59,24 +65,24 @@ common dependencies
 library
   import:          options, extensions, dependencies
   hs-source-dirs:  src
-  exposed-modules:
+  exposed-modules: Edify.Text.Narrow
 
 ------------------------------------------------------------------------------
-executable edify
-  import:         options, extensions, dependencies
-  hs-source-dirs: app
-  main-is:        Main.hs
-  other-modules:
-  build-depends:  edify
+-- executable edify
+--   import:         options, extensions, dependencies
+--   hs-source-dirs: app
+--   main-is:        Main.hs
+--   other-modules:
+--   build-depends:  edify
 
 ------------------------------------------------------------------------------
-test-suite test
-  import:         options, extensions, dependencies
-  type:           exitcode-stdio-1.0
-  hs-source-dirs: test
-  main-is:        Main.hs
-  other-modules:
-  build-depends:
-    , edify
-    , tasty        >=1.2
-    , tasty-hunit  >=0.10
+-- test-suite test
+--   import:         options, extensions, dependencies
+--   type:           exitcode-stdio-1.0
+--   hs-source-dirs: test
+--   main-is:        Main.hs
+--   other-modules:
+--   build-depends:
+--     , edify
+--     , tasty        >=1.2
+--     , tasty-hunit  >=0.10

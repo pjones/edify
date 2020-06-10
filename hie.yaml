@@ -1,0 +1,6 @@
+cradle:
+  cabal:
+    - path: "./"
+      component: "lib:edify"
+    - path: "./test"
+      component: "test:test"
