@@ -66,7 +66,9 @@ common dependencies
 library
   import:          options, extensions, dependencies
   hs-source-dirs:  src
-  exposed-modules: Edify.Text.Narrow
+  exposed-modules:
+    Edify.Text.Indent
+    Edify.Text.Narrow
 
 ------------------------------------------------------------------------------
 -- executable edify

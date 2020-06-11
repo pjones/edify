@@ -16,6 +16,7 @@
 -- Crop text based on starting and ending markers.
 module Edify.Text.Narrow
   ( Markers (..),
+    defaultMarkers,
     Token (..),
     NarrowError (..),
     narrow,
@@ -27,6 +28,7 @@ where
 import qualified Data.Attoparsec.Text as Atto
 import Data.Char (isSpace)
 import qualified Data.Text as Text
+import Edify.Text.Indent (stripLeadingIndent)
 
 -- | Beginning and ending markers for narrowing.
 --
@@ -47,11 +49,18 @@ newtype Token = Token
 newtype NarrowError = NarrowError String
   deriving (Show, Eq)
 
+-- | The default characters used to mark a region of text for
+-- narrowing.
+--
+-- @since 0.5.0.0
+defaultMarkers :: Markers
+defaultMarkers = Markers "<<:" ":>>"
+
 -- | Narrow the given text using the default token delimiters.
 --
 -- @since 0.5.0.0
 narrow :: Token -> Text -> Either NarrowError Text
-narrow = narrowWith (Markers "<<:" ":>>")
+narrow = narrowWith defaultMarkers
 
 -- | Narrow the given text to a beginning and ending delimiter.
 --
@@ -60,7 +69,7 @@ narrowWith :: Markers -> Token -> Text -> Either NarrowError Text
 narrowWith m t input =
   case Atto.parseOnly (narrowP m t) input of
     Left e -> Left (NarrowError e)
-    Right text -> Right text
+    Right text -> Right (stripLeadingIndent text)
 
 -- | Parser that extracts the text between two markers that are
 -- identified with a name ('Token').   Only consumes enough input to
