@@ -52,11 +52,12 @@ common extensions
 --------------------------------------------------------------------------------
 common dependencies
   build-depends:
-    , attoparsec  ^>=0.13
-    , base        >=4.13 && <5.0
-    , filepath    ^>=1.4
-    , relude      >=0.6  && <0.8
-    , text        ^>=1.2
+    , attoparsec            ^>=0.13
+    , base                  >=4.13 && <5.0
+    , filepath              ^>=1.4
+    , optparse-applicative  ^>=0.15
+    , relude                >=0.6  && <0.8
+    , text                  ^>=1.2
 
   mixins:
     base hiding (Prelude),
@@ -71,12 +72,12 @@ library
     Edify.Text.Narrow
 
 ------------------------------------------------------------------------------
--- executable edify
---   import:         options, extensions, dependencies
---   hs-source-dirs: app
---   main-is:        Main.hs
---   other-modules:
---   build-depends:  edify
+executable edify
+  import:         options, extensions, dependencies
+  hs-source-dirs: app
+  main-is:        Main.hs
+  other-modules:  Edify.Command.Narrow
+  build-depends:  edify
 
 ------------------------------------------------------------------------------
 test-suite test

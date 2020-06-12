@@ -18,7 +18,7 @@ module Edify.Text.Narrow
   ( Markers (..),
     defaultMarkers,
     Token (..),
-    NarrowError (..),
+    Error (..),
     narrow,
     narrowWith,
     narrowP,
@@ -46,7 +46,7 @@ newtype Token = Token
 -- | Types of errors that may occur while narrowing.
 --
 -- @since 0.5.0.0
-newtype NarrowError = NarrowError String
+newtype Error = Error String
   deriving (Show, Eq)
 
 -- | The default characters used to mark a region of text for
@@ -59,16 +59,16 @@ defaultMarkers = Markers "<<:" ":>>"
 -- | Narrow the given text using the default token delimiters.
 --
 -- @since 0.5.0.0
-narrow :: Token -> Text -> Either NarrowError Text
+narrow :: Token -> Text -> Either Error Text
 narrow = narrowWith defaultMarkers
 
 -- | Narrow the given text to a beginning and ending delimiter.
 --
 -- @since 0.5.0.0
-narrowWith :: Markers -> Token -> Text -> Either NarrowError Text
+narrowWith :: Markers -> Token -> Text -> Either Error Text
 narrowWith m t input =
   case Atto.parseOnly (narrowP m t) input of
-    Left e -> Left (NarrowError e)
+    Left e -> Left (Error e)
     Right text -> Right (stripLeadingIndent text)
 
 -- | Parser that extracts the text between two markers that are
