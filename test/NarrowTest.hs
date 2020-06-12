@@ -17,6 +17,7 @@ module NarrowTest
   )
 where
 
+import qualified Edify.Text.File as File
 import qualified Edify.Text.Narrow as Narrow
 import System.FilePath (dropExtension, takeBaseName)
 import Test.Tasty
@@ -36,8 +37,7 @@ goldenTests = do
     go golden =
       let file = dropExtension golden
           token = Narrow.Token (takeBaseName file & dropExtension & toText)
-          convert =
-            readFileText file
-              <&> Narrow.narrow token
-              <&> either show encodeUtf8
+          config = File.Config (Just token) True
+          input = File.FromFile file
+          convert = File.processInput config input <&> either show encodeUtf8
        in goldenVsString file golden convert

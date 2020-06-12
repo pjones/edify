@@ -28,7 +28,6 @@ where
 import qualified Data.Attoparsec.Text as Atto
 import Data.Char (isSpace)
 import qualified Data.Text as Text
-import Edify.Text.Indent (stripLeadingIndent)
 
 -- | Beginning and ending markers for narrowing.
 --
@@ -69,7 +68,7 @@ narrowWith :: Markers -> Token -> Text -> Either Error Text
 narrowWith m t input =
   case Atto.parseOnly (narrowP m t) input of
     Left e -> Left (Error e)
-    Right text -> Right (stripLeadingIndent text)
+    Right text -> Right text
 
 -- | Parser that extracts the text between two markers that are
 -- identified with a name ('Token').   Only consumes enough input to

@@ -19,7 +19,7 @@ module Edify.Command.Narrow
   )
 where
 
-import qualified Data.Text.IO as Text
+import qualified Edify.Text.File as File
 import qualified Edify.Text.Narrow as Narrow
 import qualified Options.Applicative as Options
 
@@ -65,10 +65,12 @@ command = ("Narrow a file to the text between two markers", flags)
 -- @since 0.5.0.0
 main :: Flags -> IO ()
 main Flags {..} = do
-  contents <- case flagsFile of
-    Nothing -> Text.getContents
-    Just path -> readFileText path
-  case Narrow.narrow (Narrow.Token flagsToken) contents of
-    Right result -> putText result
-    Left (Narrow.Error err) ->
-      die ("failed to narrow text: " <> err)
+  let config =
+        File.Config
+          { File.configNarrow = Just (Narrow.Token flagsToken),
+            File.configStripIndentation = True
+          }
+      input = maybe (File.FromHandle stdin) File.FromFile flagsFile
+  File.processInput config input >>= \case
+    Left e -> die ("failed to narrow text: " <> show e)
+    Right t -> putText t
