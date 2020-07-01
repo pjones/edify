@@ -19,6 +19,7 @@ module Edify.Command.Narrow
   )
 where
 
+import qualified Byline.Exit as B
 import qualified Edify.Text.File as File
 import qualified Edify.Text.Narrow as Narrow
 import qualified Options.Applicative as Options
@@ -72,5 +73,5 @@ main Flags {..} = do
           }
       input = maybe (File.FromHandle stdin) File.FromFile flagsFile
   File.processInput config input >>= \case
-    Left e -> die ("failed to narrow text: " <> show e)
+    Left e -> B.die e
     Right t -> putText t

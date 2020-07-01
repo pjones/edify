@@ -20,6 +20,7 @@ module Edify.Text.File
   )
 where
 
+import qualified Byline as B
 import Control.Monad.Except
 import qualified Data.Text.IO as Text
 import qualified Edify.Text.Indent as Indent
@@ -46,6 +47,20 @@ data Input
     FromHandle Handle
   | -- | Use the given 'Text' as input.
     FromText Text
+  deriving (Show)
+
+instance B.ToStylizedText Input where
+  toStylizedText = \case
+    FromFile path ->
+      "file " <> (B.text (toText path) <> B.fg B.green)
+    FromHandle h ->
+      (if h == stdin then "<stdin>" else B.text (show h))
+        <> B.fg B.green
+    -- B.text "input handle"
+    FromText t ->
+      "text:\n====\n"
+        <> (B.text t <> B.fg B.green)
+        <> "\n====\n"
 
 -- | Errors that may occur while processing a file.
 --
@@ -54,8 +69,23 @@ data Error
   = -- | The given file does not exist.
     FileDoesNotExist FilePath
   | -- | An error occured while narrwing the text.
-    NarrowError Narrow.Error
-  deriving (Show, Eq)
+    NarrowError Input Narrow.Error
+  deriving (Show)
+
+instance B.ToStylizedText Error where
+  toStylizedText = \case
+    NarrowError input e ->
+      mconcat
+        [ "while processing ",
+          B.toStylizedText input,
+          ": ",
+          B.toStylizedText e
+        ]
+    FileDoesNotExist path ->
+      mconcat
+        [ "file does not exist ",
+          B.text (toText path) <> B.fg B.magenta
+        ]
 
 -- | Read 'Text' from the given 'Input' and process it according to
 -- 'Config'.
@@ -80,7 +110,7 @@ processInput Config {..} input = runExceptT $ do
         pure text
       Just token ->
         Narrow.narrow token text
-          & first NarrowError
+          & first (NarrowError input)
     stripIndentation :: Text -> Either Error Text
     stripIndentation text
       | configStripIndentation = pure (Indent.stripLeadingIndent text)
