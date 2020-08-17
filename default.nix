@@ -7,14 +7,17 @@
 
 nix-hs {
   cabal = ./edify.cabal;
-  compiler = if ghc == "default" then "ghc-8.8.3" else ghc;
+  compiler = ghc;
 
   overrides = lib: self: super: {
-    byline = (import sources.byline { inherit pkgs; }).byline;
+    byline = super.callCabal2nix "byline" "${sources.byline}/mtl" { };
+    generic-lens = super.callHackage "generic-lens" "2.0.0.0" { };
+    commonmark = super.callCabal2nix "commonmark" "${sources.commonmark-hs}/commonmark" { };
 
-    relude =
-      if super ? relude_0_6_0_0
-      then super.relude_0_6_0_0
-      else super.relude;
+    haskeline =
+      if super ? haskeline_0_8_0_0 then
+        lib.dontCheck super.haskeline_0_8_0_0
+      else
+        super.haskeline;
   };
 }

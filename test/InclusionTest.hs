@@ -1,120 +1,78 @@
-{-
+-- |
+--
+-- Copyright:
+--   This file is part of the package Edify. It is subject to the
+--   license terms in the LICENSE file found in the top-level
+--   directory of this distribution and at:
+--
+--     https://github.com/pjones/edify
+--
+--   No part of this package, including this file, may be copied,
+--   modified, propagated, or distributed except according to the terms
+--   contained in the LICENSE file.
+--
+-- License: Apache-2.0
+module InclusionTest
+  ( main,
+  )
+where
 
-This file is part of the package edify. It is subject to the license
-terms in the LICENSE.md file found in the top-level directory of this
-distribution and at git://pmade.com/edify/LICENSE.md. No part of the
-edify package, including this file, may be copied, modified,
-propagated, or distributed except according to the terms contained in
-the LICENSE.md file.
-
--}
-
---------------------------------------------------------------------------------
-module InclusionTest (tests) where
-
-import Control.Monad.Except
-import qualified Data.Text.IO as Text
+import qualified Edify.Input as Input
+import qualified Edify.Project.Source as Source
+import qualified Edify.Text.Inclusion as Inclusion
+import System.FilePath ((</>))
 import Test.Tasty
+import Test.Tasty.Golden (findByExtension, goldenVsString)
 import Test.Tasty.HUnit
-import Text.Edify.Build.Template (OutputFormat (..))
-import qualified Text.Edify.Filter as Filter
-import Text.Edify.Filter.FilterT (FilterT)
-import qualified Text.Edify.Filter.FilterT as FilterT
-import qualified Text.Edify.Filter.Options as FilterT
-import Text.Edify.Util.Inclusion
-import Text.Edify.Util.Markdown (defaultPandocExtensions, writeMarkdownText)
 
---------------------------------------------------------------------------------
-tests :: TestTree
-tests =
-  testGroup
-    "Inclusion"
-    [ testCase "Parsing" parsedSpec,
-      testCase "Cycles" cycleSpec,
-      testCase "Regression" regressionSpec
-    ]
-
---------------------------------------------------------------------------------
-parsedSpec :: Assertion
-parsedSpec =
-  forM_ inputs $ \(s, r) ->
-    inclusionMarker s @?= r
-  where
-    inputs :: [(Text, Maybe FileRef)]
-    inputs =
-      [ ("foobar", Nothing),
-        ("<<foo.md", Nothing),
-        ("<<(foo.md)", Just (FileRef "foo.md" Nothing)),
-        ("\n<<(foo.md)\n", Just (FileRef "foo.md" Nothing)),
-        ("<<(foo.md#abc)", Just (FileRef "foo.md" (Just "abc")))
+main :: IO TestTree
+main = do
+  chunking <- chunkingTests
+  pure $
+    testGroup
+      "InclusionTest"
+      [ chunking,
+        testCase "Cycle Detection" cycleDetectionTest
       ]
 
---------------------------------------------------------------------------------
-cycleSpec :: Assertion
-cycleSpec = do
-  x <- hasCycle importWithoutCycle
-  y <- hasCycle importWithCycle
+dataDir :: FilePath
+dataDir = "test/data/inclusion"
 
-  assertBool "no cycles expected" (not x)
-  assertBool "expected a cycle" y
+chunkingTests :: IO TestTree
+chunkingTests = do
+  files <- findByExtension [".md"] dataDir
+  pure $ testGroup "Chunking" (map go files)
   where
-    hasCycle :: (MonadIO m) => FilterT m () -> m Bool
-    hasCycle f = do
-      result <- FilterT.runFilterT (Just "test/data/a.md") env f
-      case result of
-        Left e -> liftIO (putTextLn e) >> return True
-        Right _ -> return False
+    go :: FilePath -> TestTree
+    go file =
+      readFileText file
+        <&> ( Inclusion.toChunks
+                >>> either show (Inclusion.fromChunks >>> encodeUtf8)
+            )
+        & goldenVsString file file
 
---------------------------------------------------------------------------------
-env :: (MonadIO m) => FilterT.Env m
-env =
-  FilterT.Env
-    { FilterT.envFilters = Filter.filters opts,
-      FilterT.envOptions = opts,
-      FilterT.envFormat = Markdown,
-      FilterT.envOutputDirectory = Just "test",
-      FilterT.envProjectDirectory = Just ".",
-      FilterT.envPandocExts = defaultPandocExtensions
-    }
-
---------------------------------------------------------------------------------
-opts :: FilterT.Options
-opts =
-  FilterT.Options
-    { FilterT.divClassesToPromote = [],
-      FilterT.divClassesToRemove = [],
-      FilterT.outputVerbose = False,
-      FilterT.markdownExtensions = []
-    }
-
---------------------------------------------------------------------------------
-importWithoutCycle :: (MonadIO m) => FilterT m ()
-importWithoutCycle = FilterT.processFile "test/data/a.md" >> return ()
-
---------------------------------------------------------------------------------
-importWithCycle :: (MonadIO m) => FilterT m ()
-importWithCycle = FilterT.processFile "test/data/e.md" >> return ()
-
---------------------------------------------------------------------------------
-regressionSpec :: Assertion
-regressionSpec =
+cycleDetectionTest :: Assertion
+cycleDetectionTest = do
   mapM_
-    go
-    [ ("test/data/reduce-in.md", "test/data/reduce-out.md")
+    shouldPass
+    [ "a.md",
+      "b.md",
+      "f.md"
+    ]
+  mapM_
+    shouldFail
+    [ "c.md",
+      "d.md",
+      "e.md"
     ]
   where
-    go :: (FilePath, FilePath) -> Assertion
-    go (fin, fout) = do
-      result <- FilterT.runFilterT (Just fin) env (convert fin)
-      case result of
-        Left e -> assertFailure (toString e)
-        Right actual -> do
-          expect <- Text.readFile fout
-          actual @?= expect
-    convert :: MonadIO m => FilePath -> FilterT m Text
-    convert file = do
-      doc <- FilterT.processFile file
-      exts <- asks FilterT.envPandocExts
-      writeMarkdownText exts doc >>= \case
-        Left e -> throwError (FilterT.Error e)
-        Right x -> pure x
+    load :: FilePath -> IO (Either Source.Error ([Source.Source], Source.Context))
+    load file = Source.toSource (Input.filePathToInput (Just $ dataDir </> file))
+    shouldPass :: FilePath -> Assertion
+    shouldPass = load >=> either (show >>> assertFailure) (const pass)
+    shouldFail :: FilePath -> Assertion
+    shouldFail file =
+      load file
+        >>= either
+          (const pass)
+          (const $ assertFailure $ "should have failed: " <> file)

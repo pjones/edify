@@ -21,11 +21,10 @@ module Edify.Text.File
 where
 
 import qualified Byline as B
-import Control.Monad.Except
-import qualified Data.Text.IO as Text
+import Edify.Input (Input)
+import qualified Edify.Input as Input
 import qualified Edify.Text.Indent as Indent
 import qualified Edify.Text.Narrow as Narrow
-import qualified System.Directory as Dir
 
 -- | How to process a file.
 --
@@ -37,40 +36,15 @@ data Config = Config
     configStripIndentation :: Bool
   }
 
--- | Where to read input from.
---
--- @since 0.5.0.0
-data Input
-  = -- | Read input from the given file.
-    FromFile FilePath
-  | -- | Read input from the given handle.
-    FromHandle Handle
-  | -- | Use the given 'Text' as input.
-    FromText Text
-  deriving (Show)
-
-instance B.ToStylizedText Input where
-  toStylizedText = \case
-    FromFile path ->
-      "file " <> (B.text (toText path) <> B.fg B.green)
-    FromHandle h ->
-      (if h == stdin then "<stdin>" else B.text (show h))
-        <> B.fg B.green
-    -- B.text "input handle"
-    FromText t ->
-      "text:\n====\n"
-        <> (B.text t <> B.fg B.green)
-        <> "\n====\n"
-
 -- | Errors that may occur while processing a file.
 --
 -- @since 0.5.0.0
 data Error
-  = -- | The given file does not exist.
-    FileDoesNotExist FilePath
+  = -- | A error getting input.
+    InputError Input.Error
   | -- | An error occured while narrwing the text.
     NarrowError Input Narrow.Error
-  deriving (Show)
+  deriving (Generic, Show)
 
 instance B.ToStylizedText Error where
   toStylizedText = \case
@@ -81,28 +55,20 @@ instance B.ToStylizedText Error where
           ": ",
           B.toStylizedText e
         ]
-    FileDoesNotExist path ->
-      mconcat
-        [ "file does not exist ",
-          B.text (toText path) <> B.fg B.magenta
-        ]
+    InputError e ->
+      B.toStylizedText e
 
 -- | Read 'Text' from the given 'Input' and process it according to
 -- 'Config'.
 --
 -- @since 0.5.0.0
 processInput :: MonadIO m => Config -> Input -> m (Either Error Text)
-processInput Config {..} input = runExceptT $ do
-  content <- case input of
-    FromFile path -> do
-      unlessM (liftIO (Dir.doesFileExist path)) $
-        throwError (FileDoesNotExist path)
-      readFileText path
-    FromHandle h ->
-      liftIO (Text.hGetContents h)
-    FromText text ->
-      pure text
-  ExceptT (pure (narrow content >>= stripIndentation))
+processInput Config {..} input =
+  Input.readInput input
+    <&> ( first InputError
+            >=> (toStrict >>> narrow)
+            >=> stripIndentation
+        )
   where
     narrow :: Text -> Either Error Text
     narrow text = case configNarrow of

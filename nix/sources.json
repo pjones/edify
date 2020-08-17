@@ -1,14 +1,26 @@
 {
     "byline": {
-        "branch": "next",
+        "branch": "pjones/repl",
         "description": "Haskell library for creating command-line interfaces (colors, menus, etc.) ",
         "homepage": "",
         "owner": "pjones",
         "repo": "byline",
-        "rev": "154c25fa1e6888077fb6db0042cb75b4b82b2e6d",
-        "sha256": "1xsf7ynpb6f8n9cr7c7q90l1mx7vi8mglh7akxc96aa1ngngalbw",
+        "rev": "7d59cd80a26f621d55531f5116f0a15a80175f73",
+        "sha256": "0w0ap4pwgrfackwd8r2qfp902i4mmqjd7f1a90qw31bn78dmf46i",
         "type": "tarball",
-        "url": "https://github.com/pjones/byline/archive/154c25fa1e6888077fb6db0042cb75b4b82b2e6d.tar.gz",
+        "url": "https://github.com/pjones/byline/archive/7d59cd80a26f621d55531f5116f0a15a80175f73.tar.gz",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
+    },
+    "commonmark-hs": {
+        "branch": "master",
+        "description": "Pure Haskell commonmark parsing library, designed to be flexible and extensible",
+        "homepage": null,
+        "owner": "jgm",
+        "repo": "commonmark-hs",
+        "rev": "f9132b7686de276454a5aab14df9cabed817f86e",
+        "sha256": "0cx956d9n4lnincv0br6qsgv0vv73ymj3qc5zqqcmhdird36kvm8",
+        "type": "tarball",
+        "url": "https://github.com/jgm/commonmark-hs/archive/f9132b7686de276454a5aab14df9cabed817f86e.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     },
     "niv": {

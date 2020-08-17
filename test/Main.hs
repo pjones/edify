@@ -17,15 +17,20 @@ module Main
   )
 where
 
+import qualified AttributesTest
+import qualified InclusionTest
+import qualified MarkdownTest
 import qualified NarrowTest
 import Test.Tasty
 
 main :: IO ()
 main = do
-  narrow <- NarrowTest.main
-
-  defaultMain $
-    testGroup
-      "Tests"
-      [ narrow
+  tests <-
+    sequence
+      [ NarrowTest.main,
+        InclusionTest.main,
+        AttributesTest.main,
+        MarkdownTest.main
       ]
+
+  defaultMain (testGroup "Tests" tests)
