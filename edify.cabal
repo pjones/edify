@@ -46,6 +46,7 @@ common extensions
     DerivingVia
     ExistentialQuantification
     FlexibleContexts
+    FlexibleInstances
     GeneralizedNewtypeDeriving
     LambdaCase
     MultiParamTypeClasses
@@ -55,8 +56,11 @@ common extensions
     RankNTypes
     RecordWildCards
     ScopedTypeVariables
+    StandaloneDeriving
     TupleSections
+    TypeFamilies
     UndecidableInstances
+    ViewPatterns
 
 --------------------------------------------------------------------------------
 common dependencies
@@ -70,10 +74,15 @@ common dependencies
     , fgl                   ^>=5.7
     , filepath              ^>=1.4
     , generic-lens          ^>=2.0
+    , HsYAML                ^>=0.2
+    , HsYAML-aeson          ^>=0.2
     , lens                  >=4.18 && <5.0
     , mtl                   ^>=2.2
     , optparse-applicative  ^>=0.15
+    , pandoc                ^>=2.9
+    , pandoc-types          ^>=1.20
     , relude                >=0.6  && <0.8
+    , shake                 ^>=0.19
     , text                  ^>=1.2
 
   mixins:
@@ -89,6 +98,8 @@ library
     Edify.Format.Markdown
     Edify.Input
     Edify.JSON
+    Edify.Project.Compiler
+    Edify.Project.Options
     Edify.Project.Source
     Edify.Text.Attributes
     Edify.Text.File

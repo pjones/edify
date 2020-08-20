@@ -241,5 +241,10 @@ toSource input = do
 -- | Convert a 'Source' list back into 'Text'.
 --
 -- @since 0.5.0.0
-fromSource :: [Source] -> LTB.Builder
-fromSource = foldMap (\(Source _ t) -> LTB.fromText t)
+fromSource :: [Source] -> ([FilePath], LTB.Builder)
+fromSource =
+  foldl'
+    ( \(files, builder) (Source f t) ->
+        (f : files, builder <> LTB.fromText t)
+    )
+    ([], mempty)

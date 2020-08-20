@@ -30,15 +30,15 @@ newtype GenericJSON a = GenericJSON
 aesonOptions :: Aeson.Options
 aesonOptions =
   Aeson.defaultOptions
-    { Aeson.fieldLabelModifier = snakeCase >>> dropFirstWord,
-      Aeson.constructorTagModifier = snakeCase,
+    { Aeson.fieldLabelModifier = kebabCase >>> dropFirstWord,
+      Aeson.constructorTagModifier = kebabCase,
       Aeson.allNullaryToStringTag = True,
       Aeson.omitNothingFields = True,
       Aeson.sumEncoding = Aeson.ObjectWithSingleField
     }
   where
     dropFirstWord = dropWhile (/= '_') >>> drop 1
-    snakeCase = Aeson.camelTo2 '_'
+    kebabCase = Aeson.camelTo2 '-'
 
 instance
   ( Generic a,

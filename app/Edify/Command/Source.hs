@@ -61,6 +61,7 @@ main Flags {..} =
       B.die
       ( fst
           >>> Source.fromSource
+          >>> snd
           >>> LTB.toLazyText
           >>> putLTextLn
       )
