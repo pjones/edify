@@ -37,7 +37,7 @@ aesonOptions =
       Aeson.sumEncoding = Aeson.ObjectWithSingleField
     }
   where
-    dropFirstWord = dropWhile (/= '_') >>> drop 1
+    dropFirstWord = dropWhile (/= '-') >>> drop 1
     kebabCase = Aeson.camelTo2 '-'
 
 instance
