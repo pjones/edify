@@ -19,6 +19,7 @@ module Edify.Text.Attributes
     Attributes (..),
     attributesP,
     attributesT,
+    attributesShortcutT,
 
     -- * Attribute Names
     AttrName,
@@ -129,6 +130,17 @@ data Attributes = Attributes
   deriving stock (Generic, Show, Eq)
   deriving (ToJSON, FromJSON) via GenericJSON Attributes
 
+instance Semigroup Attributes where
+  (<>) x y =
+    Attributes
+      { attrID = attrID x <|> attrID y,
+        attrClasses = attrClasses x <> attrClasses y,
+        attrPairs = attrPairs x <> attrPairs y
+      }
+
+instance Monoid Attributes where
+  mempty = Attributes Nothing mempty mempty
+
 -- | Internal type for parsing attributes.
 --
 -- @since 0.5.0.0
@@ -206,6 +218,33 @@ attributesT attrs =
     classT = cssIdentifierT >>> ("." <>)
     kvT :: (AttrName, AttrValue) -> LText
     kvT (k, v) = toLazy (getAttrName k) <> "=" <> attributeValueT v
+
+-- | Like 'attributesT' except the caller has more control over how
+-- the attribute set will be encoded.
+--
+-- @since 0.5.0.0
+attributesShortcutT ::
+  -- | Function called when the attributes only contain a single class
+  -- name.  The encoded class name is passed as an argument.
+  (LTB.Builder -> LTB.Builder) ->
+  -- | Function called when the attributes are completely empty.  The
+  -- attribute set is encoded as an empty set of braces and passed as
+  -- an argument.
+  (LTB.Builder -> LTB.Builder) ->
+  -- | Function called on a normal set of attributes.  The encoded
+  -- attributes are passed as an argument.
+  (LTB.Builder -> LTB.Builder) ->
+  -- | The attributes to encode.
+  Attributes ->
+  -- | The final encoding.
+  LTB.Builder
+attributesShortcutT onShortcut onEmpty onFull attrs
+  | attrs == mempty = onEmpty (attributesT attrs)
+  | otherwise = case attrs of
+    Attributes Nothing [css] [] ->
+      onShortcut (LTB.fromLazyText (cssIdentifierT css))
+    _notShortcut ->
+      onFull (attributesT attrs)
 
 -- | Is the given 'Char' a valid first-character for an HTML attribute name?
 --

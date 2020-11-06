@@ -10,14 +10,21 @@ nix-hs {
   compiler = ghc;
 
   overrides = lib: self: super: {
-    byline = super.callCabal2nix "byline" "${sources.byline}/mtl" { };
-    generic-lens = super.callHackage "generic-lens" "2.0.0.0" { };
-    commonmark = super.callCabal2nix "commonmark" "${sources.commonmark-hs}/commonmark" { };
+    byline =
+      super.callCabal2nix "byline" sources.byline { };
 
-    haskeline =
-      if super ? haskeline_0_8_0_0 then
-        lib.dontCheck super.haskeline_0_8_0_0
-      else
-        super.haskeline;
+    haddock-library =
+      lib.doJailbreak super.haddock-library;
+
+    haskeline = lib.dontCheck (
+      if super ? haskeline_0_8_1_0
+      then lib.dontCheck super.haskeline_0_8_1_0
+      else super.haskeline
+    );
+
+    optparse-applicative =
+      if super ? optparse-applicative_0_16_0_0
+      then super.optparse-applicative_0_16_0_0
+      else super.optparse-applicative;
   };
 }

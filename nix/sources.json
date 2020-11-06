@@ -1,26 +1,14 @@
 {
     "byline": {
-        "branch": "pjones/repl",
+        "branch": "trunk",
         "description": "Haskell library for creating command-line interfaces (colors, menus, etc.) ",
         "homepage": "",
         "owner": "pjones",
         "repo": "byline",
-        "rev": "7d59cd80a26f621d55531f5116f0a15a80175f73",
-        "sha256": "0w0ap4pwgrfackwd8r2qfp902i4mmqjd7f1a90qw31bn78dmf46i",
+        "rev": "a5e3001333b0ca4e5ddad522d67fd6d372a5bcd7",
+        "sha256": "1hbi9vwmcxnfqj65a9ghav1vqx892wzqc5zclkkzb4nqx3rbi119",
         "type": "tarball",
-        "url": "https://github.com/pjones/byline/archive/7d59cd80a26f621d55531f5116f0a15a80175f73.tar.gz",
-        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
-    },
-    "commonmark-hs": {
-        "branch": "master",
-        "description": "Pure Haskell commonmark parsing library, designed to be flexible and extensible",
-        "homepage": null,
-        "owner": "jgm",
-        "repo": "commonmark-hs",
-        "rev": "f9132b7686de276454a5aab14df9cabed817f86e",
-        "sha256": "0cx956d9n4lnincv0br6qsgv0vv73ymj3qc5zqqcmhdird36kvm8",
-        "type": "tarball",
-        "url": "https://github.com/jgm/commonmark-hs/archive/f9132b7686de276454a5aab14df9cabed817f86e.tar.gz",
+        "url": "https://github.com/pjones/byline/archive/a5e3001333b0ca4e5ddad522d67fd6d372a5bcd7.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     },
     "niv": {
@@ -36,39 +24,39 @@
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     },
     "nix-hs": {
-        "branch": "master",
+        "branch": "release-20.09",
         "description": "Haskell + nixpkgs = nix-hs",
         "homepage": null,
         "owner": "pjones",
         "repo": "nix-hs",
-        "rev": "9c659114a8e86c32fd44cf3aab739a5707a2fdf6",
-        "sha256": "0gprj1fz1sc5xwmhgjdg0hjra69ck2wbmxdqpb1r4hb01x8sxp1h",
+        "rev": "a9e50318c54fe8dd2d037ecdd9288beb0e9cd1dd",
+        "sha256": "1ks766798an6svir51zg6c1pmyvfkl32r5w2a4cmymf3m0fybdyc",
         "type": "tarball",
-        "url": "https://github.com/pjones/nix-hs/archive/9c659114a8e86c32fd44cf3aab739a5707a2fdf6.tar.gz",
+        "url": "https://github.com/pjones/nix-hs/archive/a9e50318c54fe8dd2d037ecdd9288beb0e9cd1dd.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     },
     "nixpkgs": {
-        "branch": "nixpkgs-unstable",
-        "description": "A read-only mirror of NixOS/nixpkgs tracking the released channels. Send issues and PRs to",
-        "homepage": "https://github.com/NixOS/nixpkgs",
+        "branch": "nixos-20.09",
+        "description": "Nix Packages collection",
+        "homepage": "",
         "owner": "NixOS",
-        "repo": "nixpkgs-channels",
-        "rev": "1ae28ebfdb7e7d48f003881967db67c156724912",
-        "sha256": "1qqzxaf0nfsg8zdgr5kghih4pr46q5acbnpzihnsdiiykz4xvs3f",
+        "repo": "nixpkgs",
+        "rev": "d105075a1fd870b1d1617a6008cb38b443e65433",
+        "sha256": "1jcs44wn0s6mlf2jps25bvcai1rij9b2dil6zcj8zqwf2i8xmqjh",
         "type": "tarball",
-        "url": "https://github.com/NixOS/nixpkgs-channels/archive/1ae28ebfdb7e7d48f003881967db67c156724912.tar.gz",
+        "url": "https://github.com/NixOS/nixpkgs/archive/d105075a1fd870b1d1617a6008cb38b443e65433.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     },
-    "nixpkgs/nixos-20.03": {
-        "branch": "nixos-20.03",
-        "description": "A read-only mirror of NixOS/nixpkgs tracking the released channels. Send issues and PRs to",
-        "homepage": "https://github.com/NixOS/nixpkgs",
-        "owner": "nixos",
-        "repo": "nixpkgs-channels",
-        "rev": "e2bb73ce5f786b83e984b80199112f86b8a6cc9d",
-        "sha256": "0mpcdwhippvgsj3kj8vw35dgz94dnzgxgsfqqzcfpmvnzjc23vk7",
+    "nixpkgs-unstable": {
+        "branch": "nixpkgs-unstable",
+        "description": "Nix Packages collection",
+        "homepage": "",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "7ad5e816faba3f808e2a8815b14d0f023a4e2160",
+        "sha256": "1vqqpcnybwl10h5br5nm8n0l33qfzj3rxhahf3pfjfvrc8iyk762",
         "type": "tarball",
-        "url": "https://github.com/nixos/nixpkgs-channels/archive/e2bb73ce5f786b83e984b80199112f86b8a6cc9d.tar.gz",
+        "url": "https://github.com/NixOS/nixpkgs/archive/7ad5e816faba3f808e2a8815b14d0f023a4e2160.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     }
 }

@@ -18,6 +18,7 @@ module Main
 where
 
 import qualified AttributesTest
+import qualified FenceTest
 import qualified InclusionTest
 import qualified MarkdownTest
 import qualified NarrowTest
@@ -30,7 +31,8 @@ main = do
       [ NarrowTest.main,
         InclusionTest.main,
         AttributesTest.main,
-        MarkdownTest.main
+        MarkdownTest.main,
+        FenceTest.main
       ]
 
   defaultMain (testGroup "Tests" tests)
