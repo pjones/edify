@@ -29,10 +29,10 @@
         "homepage": null,
         "owner": "pjones",
         "repo": "nix-hs",
-        "rev": "a9e50318c54fe8dd2d037ecdd9288beb0e9cd1dd",
-        "sha256": "1ks766798an6svir51zg6c1pmyvfkl32r5w2a4cmymf3m0fybdyc",
+        "rev": "c47f5e52d1d2ef1621cbe627fba11164b12cac19",
+        "sha256": "0ld5jminbazfb99amysxy6m50mmlk04smfd93fqz6hilxwfq7lv9",
         "type": "tarball",
-        "url": "https://github.com/pjones/nix-hs/archive/a9e50318c54fe8dd2d037ecdd9288beb0e9cd1dd.tar.gz",
+        "url": "https://github.com/pjones/nix-hs/archive/c47f5e52d1d2ef1621cbe627fba11164b12cac19.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     },
     "nixpkgs": {

@@ -14,12 +14,14 @@
 -- License: Apache-2.0
 module Edify.JSON
   ( GenericJSON (..),
+    RecursiveJSON (..),
     Aeson.ToJSON,
     Aeson.FromJSON,
   )
 where
 
 import qualified Data.Aeson as Aeson
+import qualified Data.Functor.Foldable as Recursion
 import GHC.Generics (Rep)
 
 -- | Type wrapper for automatic JSON deriving.
@@ -57,3 +59,22 @@ instance
   Aeson.FromJSON (GenericJSON a)
   where
   parseJSON = fmap GenericJSON . Aeson.genericParseJSON aesonOptions
+
+-- | Aeson instances for types using @recursion-schemes@.
+newtype RecursiveJSON r = RecursiveJSON r
+
+instance
+  ( Recursion.Recursive r,
+    Aeson.ToJSON (Recursion.Base r Aeson.Value)
+  ) =>
+  Aeson.ToJSON (RecursiveJSON r)
+  where
+  toJSON (RecursiveJSON r) = Recursion.cata Aeson.toJSON r
+
+instance
+  ( Recursion.Corecursive r,
+    Aeson.FromJSON (Recursion.Base r r)
+  ) =>
+  Aeson.FromJSON (RecursiveJSON r)
+  where
+  parseJSON = fmap (RecursiveJSON . Recursion.embed) . Aeson.parseJSON

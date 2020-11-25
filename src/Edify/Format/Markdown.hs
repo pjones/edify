@@ -24,10 +24,10 @@ where
 
 import qualified Byline as B
 import qualified Data.Attoparsec.Text.Lazy as Atto
-import qualified Data.Text as Text
 import qualified Data.Text.Lazy.Builder as LTB
 import Edify.JSON
-import Edify.Text.Attributes
+import Edify.Markdown.Attributes
+import Edify.Markdown.Heading
 import Edify.Text.Narrow (Token (..))
 
 -- | Errors that may occur.
@@ -46,17 +46,6 @@ instance B.ToStylizedText Error where
     NarrowTokenMissingError t ->
       B.text "I didn't see a Markdown heading with ID "
         <> (B.fg B.red <> B.text t)
-
--- | Information about a Markdown heading.
---
--- @since 0.5.0.0
-data Heading = Heading
-  { headingLevel :: Int,
-    headingContent :: Text,
-    headingAttrs :: Maybe Attributes
-  }
-  deriving stock (Generic, Show)
-  deriving (ToJSON, FromJSON) via GenericJSON Heading
 
 -- | A single chunk of Markdown.
 --
@@ -86,8 +75,7 @@ toChunks =
     parser =
       Atto.many1
         ( Atto.choice
-            [ atxHeading <&> CHeading,
-              setextHeading <&> CHeading,
+            [ headingP <&> CHeading,
               chunk <&> Chunk
             ]
         )
@@ -135,135 +123,3 @@ narrow (Token token) input = do
               if headingLevel > n
                 then (c : cs, level)
                 else (cs, Nothing)
-
--- | Allowed leading space in Markdown before it is considered an
--- indentation.  This parser never fails.
---
--- @since 0.5.0.0
-nonindentSpaces :: Atto.Parser Int
-nonindentSpaces = go 3 <|> pure 0
-  where
-    go :: Int -> Atto.Parser Int
-    go n = do
-      _ <- Atto.char ' '
-      if n >= 0
-        then (go (pred n) <&> (+ 1)) <|> pure 1
-        else pure 1
-
--- | Matches the end of a line or the end of input.
---
--- @since 0.5.0.0
-eolP :: Atto.Parser ()
-eolP =
-  (Atto.<?> "expected end of line or input") $
-    Atto.skipWhile Atto.isHorizontalSpace
-      *> (Atto.endOfLine <|> Atto.endOfInput)
-
--- | Help parse ATX headings.
-data ATX
-  = AtxContent Text
-  | AtxClose
-  | AtxAttrs Attributes
-
--- | Parse an ATX (structured text format from Aaron Swartz) style
--- heading.
---
--- @since 0.5.0.0
-atxHeading :: Atto.Parser Heading
-atxHeading = (Atto.<?> "ATX-style heading") $ do
-  _ <- nonindentSpaces
-  level <- Atto.many1 (Atto.char '#' $> Sum 1) <&> (fold >>> getSum)
-  Atto.skipWhile Atto.isHorizontalSpace
-  guard (level <= 6)
-  let close =
-        Atto.skipWhile Atto.isHorizontalSpace
-          *> Atto.many1 (Atto.satisfy (== '#'))
-          *> Atto.skipWhile Atto.isHorizontalSpace
-          *> ( Atto.peekChar >>= \case
-                 Nothing -> pure ()
-                 Just c
-                   | c == '{' -> pure ()
-                   | c == '\r' -> pure ()
-                   | c == '\n' -> pure ()
-                   | otherwise -> empty
-             )
-      heading =
-        Atto.many1
-          ( Atto.satisfy
-              ( \c ->
-                  c /= '#'
-                    && c /= '{'
-                    && c /= '\r'
-                    && c /= '\n'
-              )
-          )
-  content <-
-    Atto.many1 $
-      Atto.choice
-        [ heading <&> (toText >>> AtxContent),
-          close $> AtxClose,
-          attributesP <&> AtxAttrs,
-          Atto.char '#' $> AtxContent "#",
-          Atto.char '{' $> AtxContent "{"
-        ]
-  eolP
-  pure $
-    Heading
-      { headingLevel = level,
-        headingContent = Text.strip (mconcat [t | AtxContent t <- content]),
-        headingAttrs = listToMaybe [a | AtxAttrs a <- content]
-      }
-
--- | Help parse Setext headings.
-data Setext
-  = SetextContent Text
-  | SetextAttrs Attributes
-
--- | Parse a Setext (Structure Enhanced Text) heading.
---
--- @since 0.5.0.0
-setextHeading :: Atto.Parser Heading
-setextHeading = (Atto.<?> "Setext-style heading") $ do
-  indent0 <- nonindentSpaces
-  let headingP =
-        Atto.many1
-          ( Atto.satisfy
-              ( \c ->
-                  c /= '{'
-                    && c /= '\r'
-                    && c /= '\n'
-              )
-          )
-  content <-
-    Atto.many1 $
-      Atto.choice
-        [ headingP <&> (toText >>> SetextContent),
-          attributesP <&> SetextAttrs,
-          Atto.char '{' $> SetextContent "{"
-        ]
-  eolP
-  indent1 <- nonindentSpaces
-  guard (indent0 == indent1)
-  level <-
-    (Atto.many1 (Atto.char '=') $> 1)
-      <|> (Atto.many1 (Atto.char '-') $> 2)
-  eolP
-  pure $
-    Heading
-      { headingLevel = level,
-        headingContent = Text.strip (mconcat [t | SetextContent t <- content]),
-        headingAttrs = listToMaybe [a | SetextAttrs a <- content]
-      }
-
--- | Encode a 'Heading'.
---
--- @since 0.5.0.0
-headingT :: Heading -> LTB.Builder
-headingT Heading {..} =
-  mconcat
-    [ LTB.fromText $ Text.replicate headingLevel "#",
-      LTB.singleton ' ',
-      LTB.fromText headingContent,
-      maybe mempty (attributesT >>> (LTB.singleton ' ' <>)) headingAttrs,
-      LTB.fromText "\n"
-    ]

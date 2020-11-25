@@ -12,38 +12,34 @@
 --   contained in the LICENSE file.
 --
 -- License: Apache-2.0
-module FenceTest
+module Edify.Markdown.ASTTest
   ( main,
   )
 where
 
-import qualified Data.Attoparsec.Text.Lazy as Atto
-import qualified Data.Text.Lazy as LText
 import qualified Data.Text.Lazy.Builder as LTB
-import qualified Edify.Text.Fence as Fence
+import qualified Edify.Markdown.AST as AST
+import Edify.Markdown.CommonTest (parseOnly)
+import System.FilePath ((</>))
 import Test.Tasty
 import Test.Tasty.Golden (findByExtension, goldenVsString)
 import Test.Tasty.HUnit
 
 main :: IO TestTree
-main = goldenFenceTests
+main = do
+  gs <- goldenAstTests
+  pure $
+    testGroup
+      "AST"
+      [ gs,
+        testCase "Extract URLs" testExtractURLs
+      ]
 
 dataDir :: FilePath
-dataDir = "test/data/fence"
+dataDir = "test/data/ast"
 
-parseOnly :: Atto.Parser a -> LText -> IO a
-parseOnly parser input =
-  case Atto.parse parser input of
-    Atto.Fail _ _ err ->
-      assertFailure (toString input <> ": " <> err)
-    Atto.Done t actual
-      | LText.null t ->
-        pure actual
-      | otherwise ->
-        assertFailure (toString input <> ": left overs: " <> toString t)
-
-goldenFenceTests :: IO TestTree
-goldenFenceTests = do
+goldenAstTests :: IO TestTree
+goldenAstTests = do
   files <- findByExtension [".md"] dataDir
   pure $ testGroup "Decoding/Encoding" (map go files)
   where
@@ -53,9 +49,20 @@ goldenFenceTests = do
         file
         file
         ( readFileLText file
-            >>= parseOnly Fence.fenceP
-              <&> ( Fence.fenceT
+            >>= parseOnly AST.markdownP
+              <&> ( AST.markdownT
                       >>> LTB.toLazyText
                       >>> encodeUtf8
                   )
         )
+
+extractURLs :: FilePath -> IO [Text]
+extractURLs file =
+  readFileLText (dataDir </> file)
+    >>= parseOnly AST.markdownP
+    <&> AST.extractURLs
+
+testExtractURLs :: Assertion
+testExtractURLs = do
+  as <- extractURLs "a.md"
+  as @?= ["#foo", "#bar", "http://example.com"]

@@ -12,35 +12,15 @@
 --   contained in the LICENSE file.
 --
 -- License: Apache-2.0
-module AttributesTest
+module Edify.Markdown.AttributesTest
   ( main,
   )
 where
 
-import qualified Data.Attoparsec.Text.Lazy as Atto
-import qualified Data.Text.Lazy as LText
-import Edify.Text.Attributes
+import Edify.Markdown.Attributes
+import Edify.Markdown.CommonTest
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit
-
-parseOnly :: Atto.Parser a -> LText -> IO a
-parseOnly parser input =
-  case Atto.parse parser input of
-    Atto.Fail _ _ err ->
-      assertFailure (toString input <> ": " <> err)
-    Atto.Done t actual
-      | LText.null t ->
-        pure actual
-      | otherwise ->
-        assertFailure (toString input <> ": left overs: " <> toString t)
-
-parseShouldFail :: Atto.Parser a -> LText -> Assertion
-parseShouldFail parser input =
-  case Atto.parse (parser <* Atto.endOfInput) input of
-    Atto.Fail {} ->
-      pass
-    Atto.Done {} ->
-      assertFailure (toString input <> ": should have failed to parse")
 
 testAttributesParsing :: Assertion
 testAttributesParsing =

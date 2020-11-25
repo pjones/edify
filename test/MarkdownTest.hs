@@ -17,41 +17,22 @@ module MarkdownTest
   )
 where
 
-import qualified Edify.Format.Markdown as Markdown
+import qualified Edify.Markdown.ASTTest as ASTTest
+import qualified Edify.Markdown.AttributesTest as AttributesTest
+import qualified Edify.Markdown.FenceTest as FenceTest
+import qualified Edify.Markdown.HeadingTest as HeadingTest
+import qualified Edify.Markdown.ImageTest as ImageTest
+import qualified Edify.Markdown.LinkTest as LinkTest
 import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit
-
-testHeaderParsing :: Assertion
-testHeaderParsing =
-  mapM_
-    shouldPass
-    [ ("## Simple", 2, "Simple"),
-      ("## #1", 2, "#1"),
-      ("### It's #1 ###", 3, "It's #1"),
-      ("# Attrs {#id}", 1, "Attrs"),
-      ("# Attrs # {#id}", 1, "Attrs"),
-      ("Simple\n===", 1, "Simple"),
-      ("Attrs {#id}\n===", 1, "Attrs"),
-      ("Attrs {#id} Mixed\n===", 1, "Attrs Mixed")
-    ]
-  where
-    shouldPass :: (LText, Int, Text) -> Assertion
-    shouldPass (input, level, content) = do
-      heading <-
-        case Markdown.toChunks input of
-          Left e ->
-            assertFailure (toString input <> ": " <> show e)
-          Right cs ->
-            case listToMaybe [h | Markdown.CHeading h <- cs] of
-              Nothing -> assertFailure (toString input <> ": no headings found")
-              Just h -> pure h
-      Markdown.headingLevel heading @?= level
-      Markdown.headingContent heading @?= content
 
 main :: IO TestTree
 main =
-  pure $
-    testGroup
-      "Markdown"
-      [ testCase "Headers" testHeaderParsing
+  testGroup "Markdown"
+    <$> sequence
+      [ AttributesTest.main,
+        FenceTest.main,
+        LinkTest.main,
+        ImageTest.main,
+        HeadingTest.main,
+        ASTTest.main
       ]

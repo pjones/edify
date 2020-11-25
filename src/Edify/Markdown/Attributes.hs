@@ -14,7 +14,7 @@
 -- License: Apache-2.0
 --
 -- Pandoc-like attribute blocks.
-module Edify.Text.Attributes
+module Edify.Markdown.Attributes
   ( -- * Attribute Parsing and Generating
     Attributes (..),
     attributesP,
@@ -44,15 +44,16 @@ module Edify.Text.Attributes
   )
 where
 
-import Commonmark.Entity (lookupEntity)
 import Control.Lens ((%~), (?~))
 import qualified Data.Attoparsec.Text.Lazy as Atto
 import Data.Char (isAlpha, isAlphaNum, isAscii, isHexDigit, isLetter, isPrint, isSpace)
 import Data.Generics.Labels ()
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy as LText
 import qualified Data.Text.Lazy.Builder as LTB
 import qualified Data.Text.Read as Text
+import qualified Edify.HTML.Entities as HTML
 import Edify.JSON
 import Text.Printf (printf)
 
@@ -462,11 +463,32 @@ decodeEntities t =
             ]
         )
         <&> mconcat
+
     normalP :: Atto.Parser Text
     normalP = Atto.many1 (Atto.satisfy (/= '&')) <&> toText
+
     entityP :: Atto.Parser Text
     entityP = do
       _ <- Atto.char '&'
-      cs <- Atto.many1 (Atto.satisfy (/= ';'))
+      cs <- Atto.many1 (Atto.satisfy (/= ';')) <&> toText
       _ <- Atto.char ';'
-      pure (fromMaybe mempty $ lookupEntity (toText cs))
+
+      pure $
+        fromMaybe mempty $
+          case Text.uncons cs of
+            Just ('#', code) -> decodeNum code
+            _named -> HashMap.lookup cs HTML.entities
+
+    decodeNum :: Text -> Maybe Text
+    decodeNum input =
+      let decode = \case
+            Left _invalid -> Nothing
+            Right (n :: Integer, t) -> do
+              guard (Text.null t)
+              guard (n >= 1 && n <= 0x10FFFF)
+              pure (Text.singleton (chr $ fromInteger n))
+       in case Text.uncons input of
+            Just ('x', num) -> decode (Text.hexadecimal num)
+            Just ('X', num) -> decode (Text.hexadecimal num)
+            Just _decimal -> decode (Text.decimal input)
+            Nothing -> Nothing
