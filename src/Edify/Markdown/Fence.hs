@@ -344,6 +344,13 @@ data Rewrite = Rewrite
   deriving stock (Generic, Show, Eq)
   deriving (ToJSON, FromJSON) via GenericJSON Rewrite
 
+instance Semigroup Rewrite where
+  (<>) (Rewrite x1 y1) (Rewrite x2 y2) =
+    Rewrite (x1 <|> x2) (y1 <|> y2)
+
+instance Monoid Rewrite where
+  mempty = Rewrite Nothing Nothing
+
 -- | Helper type mostly to reduce keyboard typing.
 --
 -- @since 0.5.0.0

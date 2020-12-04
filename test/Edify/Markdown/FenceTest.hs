@@ -66,32 +66,35 @@ testRewrite = do
   let fileIn = dataDir </> "rewrite-a0.md"
       fileCmp = dataDir </> "rewrite-a1.md"
   key <- Attrs.toName "rewrite" & maybe (fail "impossible") pure
-  pure $
-    goldenVsString
-      "Rewrite"
-      fileCmp
-      ( readFileLText fileIn
-          >>= parseOnly (Fence.fenceP wholelineP)
-          <&> ( Fence.rewrite LTB.fromText wholelineP (rewrite key)
-                  >>> runIdentity
-                  >>> either
-                    encodeUtf8
-                    ( Fence.fenceT LTB.fromText
-                        >>> LTB.toLazyText
-                        >>> encodeUtf8
-                    )
-              )
-      )
+  pure $ testGroup "Rewrite" (one $ go key fileIn fileCmp)
   where
+    go :: Attrs.Name -> FilePath -> FilePath -> TestTree
+    go key fileIn fileCmp =
+      goldenVsString
+        fileCmp
+        fileCmp
+        ( readFileLText fileIn
+            >>= parseOnly (Fence.fenceP wholelineP)
+            <&> ( Fence.rewrite LTB.fromText wholelineP (rewrite key)
+                    >>> runIdentity
+                    >>> either
+                      (("FAIL: " <>) >>> encodeUtf8)
+                      ( Fence.fenceT LTB.fromText
+                          >>> LTB.toLazyText
+                          >>> encodeUtf8
+                      )
+                )
+        )
+
     rewrite ::
       Attrs.Name ->
       (Attrs.Attributes, Text) ->
       Identity Fence.Rewrite
     rewrite key (attrs, text)
       | attrs ^. #attrPairs . at key == Just "yes" =
-        pure $
-          Fence.Rewrite
-            (Just (attrs & #attrPairs . at key ?~ "no"))
-            (Just (Text.replace "Hello" "Rewritten" text))
+        mempty
+          & #rewriteAttrs ?~ (attrs & #attrPairs . at key ?~ "no")
+          & #rewriteBody ?~ Text.replace "Hello" "Rewritten" text
+          & pure
       | otherwise =
         pure (Fence.Rewrite Nothing Nothing)
