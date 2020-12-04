@@ -17,6 +17,7 @@ module Edify.Markdown.Link
     Definition (..),
     RefSep (..),
     Destination (..),
+    traverseLink,
     linkP,
     linkDestP,
     linkDefinitionP,
@@ -101,6 +102,22 @@ data Definition = Definition
   }
   deriving stock (Generic, Show, Eq)
   deriving (ToJSON, FromJSON) via GenericJSON Definition
+
+-- | FIXME: Write description for url
+--
+-- @since 0.5.0.0
+traverseLink ::
+  Applicative f =>
+  (Text -> f Text) ->
+  (a -> f b) ->
+  Link a ->
+  f (Link b)
+traverseLink f g = \case
+  Link {..} ->
+    case linkDest of
+      Inline u t -> Link <$> g linkText <*> ((`Inline` t) <$> f u)
+      Reference {} -> (`Link` linkDest) <$> g linkText
+  AutoLink u -> AutoLink <$> f u
 
 -- | Link parser.
 --

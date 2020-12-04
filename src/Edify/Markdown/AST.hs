@@ -19,16 +19,19 @@ module Edify.Markdown.AST
     Inline,
     markdownP,
     markdownT,
-    extractURLs,
+    blocks,
+    urls,
+    fences,
   )
 where
 
 import qualified Data.Attoparsec.Text as Atto
 import Data.Functor.Foldable (Fix (..), cata)
+import Data.Generics.Labels ()
 import qualified Data.Text.Lazy.Builder as LTB
 import Edify.JSON
 import Edify.Markdown.Common (endOfLineP, wholelineP)
-import Edify.Markdown.Fence (FenceR)
+import Edify.Markdown.Fence (Fence)
 import qualified Edify.Markdown.Fence as Fence
 import Edify.Markdown.Heading (Heading)
 import qualified Edify.Markdown.Heading as Heading
@@ -36,6 +39,7 @@ import Edify.Markdown.Image (Image)
 import qualified Edify.Markdown.Image as Image
 import Edify.Markdown.Link (Link)
 import qualified Edify.Markdown.Link as Link
+import Edify.Sourced
 
 -- | Inline elements in Markdown.
 --
@@ -61,7 +65,7 @@ deriving via (RecursiveJSON Inline) instance FromJSON Inline
 -- @since 0.5.0.0
 data Block
   = HeadingBlock Heading
-  | FenceBlock (FenceR [Inline])
+  | FenceBlock (Fence [Inline])
   | LinkDefBlock Link.Definition
   | ParaBlock [Inline]
   | BlankLine Text
@@ -72,13 +76,13 @@ data Block
 -- list of trees.
 --
 -- @since 0.5.0.0
-newtype AST = AST {unAST :: [Block]}
+newtype AST = AST {unAST :: [Sourced Block]}
 
 -- | Markdown parser.
 --
 -- @since 0.5.0.0
-markdownP :: Atto.Parser AST
-markdownP = AST <$> Atto.many1 blockP
+markdownP :: Location -> Atto.Parser AST
+markdownP loc = AST . map (`Sourced` loc) <$> Atto.many1 blockP
 
 -- | Parser a Markdown block.
 --
@@ -101,10 +105,11 @@ blockP =
     headingP = HeadingBlock <$> Heading.headingP
 
     fenceP :: Atto.Parser Block
-    fenceP =
-      FenceBlock
-        . Fence.reinterpretFenceBodyP reinterpretInlineP
-        <$> Fence.fenceP wholelineP
+    fenceP = do
+      fence <- Fence.fenceP wholelineP
+      case Fence.reinterpret reinterpretInlineP fence of
+        Left msg -> fail msg
+        Right x -> pure (FenceBlock x)
 
     linkDefP :: Atto.Parser Block
     linkDefP = LinkDefBlock <$> Link.linkDefinitionP
@@ -184,9 +189,12 @@ reinterpretInlineP =
 
 -- | Convert a Markdown syntax tree into text.
 --
+-- FIXME: If a paragraph starts with a syntax character (i.e. @#@)
+-- then escape it with a backslash.
+--
 -- @since 0.5.0.0
 markdownT :: AST -> LTB.Builder
-markdownT = unAST >>> foldMap go
+markdownT = unAST >>> map sourced >>> foldMap go
   where
     go :: Block -> LTB.Builder
     go = \case
@@ -202,30 +210,52 @@ markdownT = unAST >>> foldMap go
       ImageF img -> Image.imageT img
       LinkF lnk -> Link.linkT mconcat lnk
 
--- | Extract all URLs from links and images.
+-- | Traversal for all blocks in a Markdown AST.
 --
 -- @since 0.5.0.0
-extractURLs :: AST -> [Text]
-extractURLs = unAST >>> concatMap go
-  where
-    go :: Block -> [Text]
-    go = \case
-      HeadingBlock {} -> mempty
-      FenceBlock fb -> concatMap inline (Fence.extractBody fb & concat)
-      LinkDefBlock def -> [Link.defURL def]
-      ParaBlock pb -> concatMap inline pb
-      BlankLine {} -> mempty
+blocks ::
+  Applicative f =>
+  (Sourced Block -> f (Sourced Block)) ->
+  AST ->
+  f AST
+blocks f (AST blocks) = AST <$> traverse f blocks
 
-    inline :: Inline -> [Text]
+-- | Traversal for all URLs in a block of Markdown.
+--
+-- @since 0.5.0.0
+urls ::
+  forall f.
+  Applicative f =>
+  (Text -> f Text) ->
+  Sourced Block ->
+  f (Sourced Block)
+urls f (Sourced block loc) = (`Sourced` loc) <$> go block
+  where
+    go :: Block -> f Block
+    go = \case
+      FenceBlock fb -> FenceBlock <$> Fence.bodies (traverse inline) fb
+      LinkDefBlock def -> LinkDefBlock <$> #defURL f def
+      ParaBlock pb -> ParaBlock <$> traverse inline pb
+      other -> pure other
+
+    inline :: Inline -> f Inline
     inline = cata $ \case
-      TextChunkF {} ->
-        mempty
-      ImageF img ->
-        case Image.imageSrc img of
-          Link.Inline url _ -> pure url
-          Link.Reference {} -> mempty
-      LinkF lnk ->
-        concat (Link.linkText lnk)
-          <> case Link.linkDest lnk of
-            Link.Inline url _ -> pure url
-            Link.Reference {} -> mempty
+      TextChunkF t -> pure (Fix $ TextChunkF t)
+      ImageF image -> Fix . ImageF <$> Image.src f image
+      LinkF lnk -> Fix . LinkF <$> Link.traverseLink f sequenceA lnk
+
+-- | Traversal for all fence blocks in a block of Markdown.
+--
+-- @since 0.5.0.0
+fences ::
+  forall f.
+  Applicative f =>
+  (Fence [Inline] -> f (Fence [Inline])) ->
+  Sourced Block ->
+  f (Sourced Block)
+fences f (Sourced block loc) = (`Sourced` loc) <$> go block
+  where
+    go :: Block -> f Block
+    go = \case
+      FenceBlock fb -> FenceBlock <$> f fb
+      other -> pure other

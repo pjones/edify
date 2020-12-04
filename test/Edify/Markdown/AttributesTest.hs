@@ -69,8 +69,8 @@ testAttributesParsing =
     idj = mkAttrName >>> maybe (error "bad id") Just
     classes :: [Text] -> [CssIdent]
     classes = mapMaybe mkCssIdent
-    kvs :: [(Text, Text)] -> [(AttrName, AttrValue)]
-    kvs = mapMaybe (\(k, v) -> (,mkAttrValue v) <$> mkAttrName k)
+    kvs :: [(Text, Text)] -> HashMap AttrName AttrValue
+    kvs = fromList . mapMaybe (\(k, v) -> (,mkAttrValue v) <$> mkAttrName k)
 
 testAttrValue :: Assertion
 testAttrValue = do

@@ -17,6 +17,7 @@ module Edify.Markdown.ASTTest
   )
 where
 
+import Control.Lens ((^..))
 import qualified Data.Text.Lazy.Builder as LTB
 import qualified Edify.Markdown.AST as AST
 import Edify.Markdown.CommonTest (parseOnly)
@@ -49,7 +50,7 @@ goldenAstTests = do
         file
         file
         ( readFileLText file
-            >>= parseOnly AST.markdownP
+            >>= parseOnly (AST.markdownP Nothing)
               <&> ( AST.markdownT
                       >>> LTB.toLazyText
                       >>> encodeUtf8
@@ -59,8 +60,8 @@ goldenAstTests = do
 extractURLs :: FilePath -> IO [Text]
 extractURLs file =
   readFileLText (dataDir </> file)
-    >>= parseOnly AST.markdownP
-    <&> AST.extractURLs
+    >>= parseOnly (AST.markdownP Nothing)
+    <&> (^.. AST.blocks . AST.urls)
 
 testExtractURLs :: Assertion
 testExtractURLs = do

@@ -41,14 +41,17 @@ common options
 --------------------------------------------------------------------------------
 common extensions
   default-extensions:
+    DeriveFoldable
     DeriveFunctor
     DeriveGeneric
+    DeriveTraversable
     DerivingStrategies
     DerivingVia
     ExistentialQuantification
     FlexibleContexts
     FlexibleInstances
     GeneralizedNewtypeDeriving
+    InstanceSigs
     LambdaCase
     MultiParamTypeClasses
     NamedFieldPuns
@@ -113,6 +116,7 @@ library
     Edify.Project.Compiler
     Edify.Project.Options
     Edify.Project.Source
+    Edify.Sourced
     Edify.Text.File
     Edify.Text.Inclusion
     Edify.Text.Indent

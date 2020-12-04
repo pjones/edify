@@ -44,7 +44,8 @@ module Edify.Markdown.Attributes
   )
 where
 
-import Control.Lens ((%~), (?~))
+import Control.Lens (at, (%~), (?~))
+import qualified Data.Aeson as Aeson
 import qualified Data.Attoparsec.Text.Lazy as Atto
 import Data.Char (isAlpha, isAlphaNum, isAscii, isHexDigit, isLetter, isPrint, isSpace)
 import Data.Generics.Labels ()
@@ -63,7 +64,18 @@ import Text.Printf (printf)
 newtype AttrName = AttrName
   {getAttrName :: Text}
   deriving stock (Generic)
-  deriving (Show, Eq, ToJSON, FromJSON) via Text
+  deriving (Show, Eq, ToJSON, Aeson.ToJSONKey, Hashable) via Text
+
+instance FromJSON AttrName where
+  parseJSON =
+    Aeson.withText
+      "Attribute name"
+      ( mkAttrName
+          >>> maybe empty pure
+      )
+
+instance Aeson.FromJSONKey AttrName where
+  fromJSONKey = Aeson.FromJSONKeyValue Aeson.parseJSON
 
 -- | Create an 'AttrName' value.
 --
@@ -77,28 +89,25 @@ mkAttrName name = do
 -- | An attribute value according to HTML.
 --
 -- @since 0.5.0.0
-data AttrValue
-  = AttrUnquoted Text
-  | AttrQuoted Text
-  deriving stock (Generic, Show, Eq)
-  deriving (ToJSON, FromJSON) via GenericJSON AttrValue
+newtype AttrValue = AttrValue Text
+  deriving stock (Generic)
+  deriving (Show, Eq, Semigroup, Monoid, ToJSON, FromJSON) via Text
+
+instance IsString AttrValue where
+  fromString = AttrValue . toText
 
 -- | Extract the text value from an attribute.
 --
 -- @since 0.5.0.0
 getAttrValue :: AttrValue -> Text
-getAttrValue = \case
-  AttrUnquoted t -> t
-  AttrQuoted t -> t
+getAttrValue (AttrValue t) = t
 
 -- | Encode the given 'Text' as an attribute value.  The text may need
 -- to be altered slightly to make it a valid value.
 --
 -- @since 0.5.0.0
 mkAttrValue :: Text -> AttrValue
-mkAttrValue t
-  | not (Text.null t) && Text.all isUnquotedAttributeChar t = AttrUnquoted t
-  | otherwise = AttrQuoted t
+mkAttrValue = AttrValue
 
 -- | A CSS identifier.
 --
@@ -126,7 +135,7 @@ data Attributes = Attributes
     -- .class-two).
     attrClasses :: [CssIdent],
     -- | Key-value pairs (e.g., key=value foo="dark green").
-    attrPairs :: [(AttrName, AttrValue)]
+    attrPairs :: HashMap AttrName AttrValue
   }
   deriving stock (Generic, Show, Eq)
   deriving (ToJSON, FromJSON) via GenericJSON Attributes
@@ -171,7 +180,7 @@ attributesP =
           ( \case
               AttrID t -> #attrID ?~ t
               AttrClass t -> #attrClasses %~ (t :)
-              AttrKeyVal k v -> #attrPairs %~ ((k, v) :)
+              AttrKeyVal k v -> #attrPairs . at k ?~ v
           )
           (Attributes Nothing mempty mempty)
           attrs
@@ -211,14 +220,17 @@ attributesT attrs =
         " "
         ( maybe mempty (idT >>> one) attrID
             <> map classT attrClasses
-            <> map kvT attrPairs
+            <> HashMap.foldrWithKey kvT mempty attrPairs
         )
+
     idT :: AttrName -> LText
     idT = attributeNameT >>> ("#" <>)
+
     classT :: CssIdent -> LText
     classT = cssIdentifierT >>> ("." <>)
-    kvT :: (AttrName, AttrValue) -> LText
-    kvT (k, v) = toLazy (getAttrName k) <> "=" <> attributeValueT v
+
+    kvT :: AttrName -> AttrValue -> [LText] -> [LText]
+    kvT k v ts = (toLazy (getAttrName k) <> "=" <> attributeValueT v) : ts
 
 -- | Like 'attributesT' except the caller has more control over how
 -- the attribute set will be encoded.
@@ -242,10 +254,10 @@ attributesShortcutT ::
 attributesShortcutT onShortcut onEmpty onFull attrs
   | attrs == mempty = onEmpty (attributesT attrs)
   | otherwise = case attrs of
-    Attributes Nothing [css] [] ->
-      onShortcut (LTB.fromLazyText (cssIdentifierT css))
-    _notShortcut ->
-      onFull (attributesT attrs)
+    Attributes Nothing [css] kvs
+      | HashMap.null kvs -> onShortcut (LTB.fromLazyText (cssIdentifierT css))
+      | otherwise -> onFull (attributesT attrs)
+    _notShortcut -> onFull (attributesT attrs)
 
 -- | Is the given 'Char' a valid first-character for an HTML attribute name?
 --
@@ -288,10 +300,11 @@ attributeNameT (AttrName t) = toLazy t
 attributeValueP :: Atto.Parser AttrValue
 attributeValueP =
   Atto.choice
-    [ unquoted <&> AttrUnquoted,
-      quoted '\'' <&> AttrQuoted,
-      quoted '"' <&> AttrQuoted
+    [ unquoted,
+      quoted '\'',
+      quoted '"'
     ]
+    <&> AttrValue
   where
     unquoted :: Atto.Parser Text
     unquoted = do
@@ -300,17 +313,18 @@ attributeValueP =
     quoted :: Char -> Atto.Parser Text
     quoted quote = do
       _ <- Atto.char quote
-      cs <- many (Atto.satisfy (/= quote))
-      _ <- Atto.char quote
+      cs <- Atto.manyTill Atto.anyChar (Atto.char quote)
       decodeEntities (toText cs)
 
 -- | Encode an 'AttrValue' value as 'LText'.
 --
 -- @since 0.5.0.0
 attributeValueT :: AttrValue -> LText
-attributeValueT = \case
-  AttrUnquoted t -> toLazy (encodeUnquoted t)
-  AttrQuoted t -> toLazy (quote t)
+attributeValueT (AttrValue t)
+  | not (Text.null t) && Text.all isUnquotedAttributeChar t =
+    toLazy (encodeUnquoted t)
+  | otherwise =
+    toLazy (quote t)
   where
     quote :: Text -> Text
     quote t = "\"" <> encodeQouted t <> "\""
@@ -449,10 +463,12 @@ cssIdentifierT (CssIdent name) =
 --
 -- @since 0.5.0.0
 decodeEntities :: Alternative f => Text -> f Text
-decodeEntities t =
-  case Atto.parse (parser <* Atto.endOfInput) (toLazy t) of
-    Atto.Fail {} -> empty
-    Atto.Done _ dt -> pure dt
+decodeEntities t
+  | Text.null t = pure t
+  | otherwise =
+    case Atto.parse (parser <* Atto.endOfInput) (toLazy t) of
+      Atto.Fail {} -> empty
+      Atto.Done _ dt -> pure dt
   where
     parser :: Atto.Parser Text
     parser =

@@ -14,6 +14,7 @@
 -- License: Apache-2.0
 module Edify.Markdown.Image
   ( Image (..),
+    src,
     imageP,
     imageT,
   )
@@ -23,7 +24,7 @@ import qualified Data.Attoparsec.Text.Lazy as Atto
 import qualified Data.Text.Lazy.Builder as LTB
 import Edify.JSON
 import Edify.Markdown.Common (matchingBracketP)
-import Edify.Markdown.Link (Destination, linkDestP, linkDestT)
+import Edify.Markdown.Link (Destination (..), linkDestP, linkDestT)
 
 -- | A reference to an image.
 --
@@ -36,6 +37,15 @@ data Image = Image
   }
   deriving stock (Generic, Show, Eq)
   deriving (ToJSON, FromJSON) via GenericJSON Image
+
+-- | FIXME: Write description for src
+--
+-- @since 0.5.0.0
+src :: Applicative f => (Text -> f Text) -> Image -> f Image
+src f Image {..} =
+  case imageSrc of
+    Inline url title -> Image imageAltText . (`Inline` title) <$> f url
+    Reference {} -> pure (Image imageAltText imageSrc)
 
 -- | Markdown image reference parser.
 --
