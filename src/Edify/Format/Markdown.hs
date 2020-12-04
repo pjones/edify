@@ -116,7 +116,7 @@ narrow (Token token) input = do
         CHeading Heading {..} ->
           case level of
             Nothing ->
-              if Just token == ((headingAttrs >>= attrID) <&> getAttrName)
+              if Just token == ((headingAttrs >>= attrID) <&> toText)
                 then (c : cs, Just headingLevel)
                 else (cs, Nothing)
             Just n ->

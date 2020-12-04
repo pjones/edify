@@ -186,7 +186,7 @@ barewordP :: Atto.Parser Attrs.Attributes
 barewordP = (Atto.<?> "fenced block class name shortcut") $ do
   char <- Atto.peekChar'
   guard (char /= '{')
-  css <- Attrs.cssIdentifierP
+  css <- Attrs.cssIdentP
   pure $ Attrs.Attributes Nothing (one css) mempty
 
 -- | Convert a 'FenceR' value into a lazy text builder.

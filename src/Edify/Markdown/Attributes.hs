@@ -22,25 +22,22 @@ module Edify.Markdown.Attributes
     attributesShortcutT,
 
     -- * Attribute Names
-    AttrName,
-    getAttrName,
-    mkAttrName,
-    attributeNameP,
-    attributeNameT,
+    Name,
+    toName,
+    nameP,
+    nameT,
 
     -- * Attribute Values
-    AttrValue,
-    getAttrValue,
-    mkAttrValue,
-    attributeValueP,
-    attributeValueT,
+    Value,
+    toValue,
+    valueP,
+    valueT,
 
     -- * CSS Class Names
     CssIdent,
-    getCssIdent,
-    mkCssIdent,
-    cssIdentifierP,
-    cssIdentifierT,
+    toCssIdent,
+    cssIdentP,
+    cssIdentT,
   )
 where
 
@@ -61,53 +58,56 @@ import Text.Printf (printf)
 -- | A attribute name according to HTML.
 --
 -- @since 0.5.0.0
-newtype AttrName = AttrName
+newtype Name = Name
   {getAttrName :: Text}
   deriving stock (Generic)
-  deriving (Show, Eq, ToJSON, Aeson.ToJSONKey, Hashable) via Text
+  deriving
+    ( Show,
+      ToText,
+      Eq,
+      ToJSON,
+      Aeson.ToJSONKey,
+      Hashable
+    )
+    via Text
 
-instance FromJSON AttrName where
-  parseJSON =
-    Aeson.withText
-      "Attribute name"
-      ( mkAttrName
-          >>> maybe empty pure
-      )
+instance FromJSON Name where
+  parseJSON = Aeson.withText "Attribute name" (toName >>> maybe empty pure)
 
-instance Aeson.FromJSONKey AttrName where
+instance Aeson.FromJSONKey Name where
   fromJSONKey = Aeson.FromJSONKeyValue Aeson.parseJSON
 
--- | Create an 'AttrName' value.
+-- | Create an 'Name' value.
 --
 -- @since 0.5.0.0
-mkAttrName :: Text -> Maybe AttrName
-mkAttrName name = do
+toName :: Text -> Maybe Name
+toName name = do
   (h, t) <- Text.uncons name
   guard (isAttrNameFirstChar h && Text.all isAttrNameOtherChar t)
-  pure (AttrName name)
+  pure (Name name)
 
 -- | An attribute value according to HTML.
 --
 -- @since 0.5.0.0
-newtype AttrValue = AttrValue Text
+newtype Value = Value Text
   deriving stock (Generic)
-  deriving (Show, Eq, Semigroup, Monoid, ToJSON, FromJSON) via Text
+  deriving
+    ( Show,
+      Eq,
+      ToText,
+      IsString,
+      Semigroup,
+      Monoid,
+      ToJSON,
+      FromJSON
+    )
+    via Text
 
-instance IsString AttrValue where
-  fromString = AttrValue . toText
-
--- | Extract the text value from an attribute.
+-- | Encode the given 'Text' as an attribute value.
 --
 -- @since 0.5.0.0
-getAttrValue :: AttrValue -> Text
-getAttrValue (AttrValue t) = t
-
--- | Encode the given 'Text' as an attribute value.  The text may need
--- to be altered slightly to make it a valid value.
---
--- @since 0.5.0.0
-mkAttrValue :: Text -> AttrValue
-mkAttrValue = AttrValue
+toValue :: Text -> Value
+toValue = Value
 
 -- | A CSS identifier.
 --
@@ -115,13 +115,13 @@ mkAttrValue = AttrValue
 newtype CssIdent = CssIdent
   {getCssIdent :: Text}
   deriving stock (Generic)
-  deriving (Show, Eq, ToJSON, FromJSON) via Text
+  deriving (Show, Eq, ToText, ToJSON, FromJSON) via Text
 
 -- | Encode the given 'Text' as a CSS class name.
 --
 -- @since 0.5.0.0
-mkCssIdent :: Text -> Maybe CssIdent
-mkCssIdent t
+toCssIdent :: Text -> Maybe CssIdent
+toCssIdent t
   | Text.null t = Nothing
   | otherwise = Just (CssIdent t)
 
@@ -130,12 +130,12 @@ mkCssIdent t
 -- @since 0.5.0.0
 data Attributes = Attributes
   { -- | Optional ID field (e.g., #this-is-an-id).
-    attrID :: Maybe AttrName,
+    attrID :: Maybe Name,
     -- | Optional (zero or more) class names (e.g., .class-one
     -- .class-two).
     attrClasses :: [CssIdent],
     -- | Key-value pairs (e.g., key=value foo="dark green").
-    attrPairs :: HashMap AttrName AttrValue
+    attrPairs :: HashMap Name Value
   }
   deriving stock (Generic, Show, Eq)
   deriving (ToJSON, FromJSON) via GenericJSON Attributes
@@ -155,9 +155,9 @@ instance Monoid Attributes where
 --
 -- @since 0.5.0.0
 data Attr
-  = AttrID AttrName
+  = AttrID Name
   | AttrClass CssIdent
-  | AttrKeyVal AttrName AttrValue
+  | AttrKeyVal Name Value
 
 -- | Parse Pandoc-style attribute blocks.
 --
@@ -189,19 +189,19 @@ attributesP =
     idP :: Atto.Parser Attr
     idP =
       Atto.char '#'
-        *> attributeNameP
+        *> nameP
         <&> AttrID
     classP :: Atto.Parser Attr
     classP =
       Atto.char '.'
-        *> cssIdentifierP
+        *> cssIdentP
         <&> AttrClass
     kvP :: Atto.Parser Attr
     kvP =
       let sep = Atto.skipSpace *> Atto.char '=' <* Atto.skipSpace
        in AttrKeyVal
-            <$> (attributeNameP <* sep)
-            <*> attributeValueP
+            <$> (nameP <* sep)
+            <*> valueP
 
 -- | Encode an 'Attributes' value as a 'LTB.Builder'.
 --
@@ -223,14 +223,14 @@ attributesT attrs =
             <> HashMap.foldrWithKey kvT mempty attrPairs
         )
 
-    idT :: AttrName -> LText
-    idT = attributeNameT >>> ("#" <>)
+    idT :: Name -> LText
+    idT = nameT >>> ("#" <>)
 
     classT :: CssIdent -> LText
-    classT = cssIdentifierT >>> ("." <>)
+    classT = cssIdentT >>> ("." <>)
 
-    kvT :: AttrName -> AttrValue -> [LText] -> [LText]
-    kvT k v ts = (toLazy (getAttrName k) <> "=" <> attributeValueT v) : ts
+    kvT :: Name -> Value -> [LText] -> [LText]
+    kvT k v ts = (toLazy (getAttrName k) <> "=" <> valueT v) : ts
 
 -- | Like 'attributesT' except the caller has more control over how
 -- the attribute set will be encoded.
@@ -255,7 +255,7 @@ attributesShortcutT onShortcut onEmpty onFull attrs
   | attrs == mempty = onEmpty (attributesT attrs)
   | otherwise = case attrs of
     Attributes Nothing [css] kvs
-      | HashMap.null kvs -> onShortcut (LTB.fromLazyText (cssIdentifierT css))
+      | HashMap.null kvs -> onShortcut (LTB.fromLazyText (cssIdentT css))
       | otherwise -> onFull (attributesT attrs)
     _notShortcut -> onFull (attributesT attrs)
 
@@ -282,29 +282,29 @@ isAttrNameOtherChar c =
 -- | Parse an attribute name according to the HTML rules.
 --
 -- @since 0.5.0.0
-attributeNameP :: Atto.Parser AttrName
-attributeNameP = do
+nameP :: Atto.Parser Name
+nameP = do
   c <- Atto.satisfy isAttrNameFirstChar
   cs <- many (Atto.satisfy isAttrNameOtherChar)
-  pure (AttrName $ toText (c : cs))
+  pure (Name $ toText (c : cs))
 
--- | Encode an 'AttrName' value as 'LText'.
+-- | Encode an 'Name' value as 'LText'.
 --
 -- @since 0.5.0.0
-attributeNameT :: AttrName -> LText
-attributeNameT (AttrName t) = toLazy t
+nameT :: Name -> LText
+nameT (Name t) = toLazy t
 
 -- | Parse an attribute value according to the HTML rules.
 --
 -- @since 0.5.0.0
-attributeValueP :: Atto.Parser AttrValue
-attributeValueP =
+valueP :: Atto.Parser Value
+valueP =
   Atto.choice
     [ unquoted,
       quoted '\'',
       quoted '"'
     ]
-    <&> AttrValue
+    <&> Value
   where
     unquoted :: Atto.Parser Text
     unquoted = do
@@ -316,11 +316,11 @@ attributeValueP =
       cs <- Atto.manyTill Atto.anyChar (Atto.char quote)
       decodeEntities (toText cs)
 
--- | Encode an 'AttrValue' value as 'LText'.
+-- | Encode an 'Value' value as 'LText'.
 --
 -- @since 0.5.0.0
-attributeValueT :: AttrValue -> LText
-attributeValueT (AttrValue t)
+valueT :: Value -> LText
+valueT (Value t)
   | not (Text.null t) && Text.all isUnquotedAttributeChar t =
     toLazy (encodeUnquoted t)
   | otherwise =
@@ -392,8 +392,8 @@ isCssIdentOtherChar c =
 -- <https://www.w3.org/TR/CSS21/syndata.html#characters>
 --
 -- @since 0.5.0.0
-cssIdentifierP :: Atto.Parser CssIdent
-cssIdentifierP = do
+cssIdentP :: Atto.Parser CssIdent
+cssIdentP = do
   c <- Atto.satisfy isCssIdentFirstChar
   cs <- if c == '\\' then escapedP else pure (one c)
   rest <-
@@ -444,8 +444,8 @@ cssIdentifierP = do
 -- | Encode a CSS identifier as 'LText'.
 --
 -- @since 0.5.0.0
-cssIdentifierT :: CssIdent -> LText
-cssIdentifierT (CssIdent name) =
+cssIdentT :: CssIdent -> LText
+cssIdentT (CssIdent name) =
   let (h, t) = fromMaybe (' ', mempty) $ Text.uncons name
    in LText.foldl'
         (\t c -> t <> check isCssIdentOtherChar c)

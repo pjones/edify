@@ -65,12 +65,12 @@ testAttributesParsing =
     go (input, expected) = do
       actual <- parseOnly attributesP input
       actual @?= expected
-    idj :: Text -> Maybe AttrName
-    idj = mkAttrName >>> maybe (error "bad id") Just
+    idj :: Text -> Maybe Name
+    idj = toName >>> maybe (error "bad id") Just
     classes :: [Text] -> [CssIdent]
-    classes = mapMaybe mkCssIdent
-    kvs :: [(Text, Text)] -> HashMap AttrName AttrValue
-    kvs = fromList . mapMaybe (\(k, v) -> (,mkAttrValue v) <$> mkAttrName k)
+    classes = mapMaybe toCssIdent
+    kvs :: [(Text, Text)] -> HashMap Name Value
+    kvs = fromList . mapMaybe (\(k, v) -> (,toValue v) <$> toName k)
 
 testAttrValue :: Assertion
 testAttrValue = do
@@ -93,11 +93,11 @@ testAttrValue = do
   where
     shouldPass :: (LText, Text, LText) -> Assertion
     shouldPass (input, decodeExpect, encodeExpect) = do
-      actual <- parseOnly attributeValueP input
-      getAttrValue actual @?= decodeExpect
-      attributeValueT (mkAttrValue decodeExpect) @?= encodeExpect
+      actual <- parseOnly valueP input
+      toText actual @?= decodeExpect
+      valueT (toValue decodeExpect) @?= encodeExpect
     shouldFail :: LText -> Assertion
-    shouldFail = parseShouldFail attributeValueP
+    shouldFail = parseShouldFail valueP
 
 testCssIdent :: Assertion
 testCssIdent = do
@@ -121,11 +121,11 @@ testCssIdent = do
   where
     shouldPass :: (LText, Text, LText) -> Assertion
     shouldPass (input, decodeExpect, encodeExpect) = do
-      decodeActual <- parseOnly cssIdentifierP input
-      getCssIdent decodeActual @?= decodeExpect
-      cssIdentifierT decodeActual @?= encodeExpect
+      decodeActual <- parseOnly cssIdentP input
+      toText decodeActual @?= decodeExpect
+      cssIdentT decodeActual @?= encodeExpect
     shouldFail :: LText -> Assertion
-    shouldFail = parseShouldFail cssIdentifierP
+    shouldFail = parseShouldFail cssIdentP
 
 main :: IO TestTree
 main =

@@ -65,7 +65,7 @@ testRewrite :: IO TestTree
 testRewrite = do
   let fileIn = dataDir </> "rewrite-a0.md"
       fileCmp = dataDir </> "rewrite-a1.md"
-  key <- Attrs.mkAttrName "rewrite" & maybe (fail "impossible") pure
+  key <- Attrs.toName "rewrite" & maybe (fail "impossible") pure
   pure $
     goldenVsString
       "Rewrite"
@@ -84,7 +84,7 @@ testRewrite = do
       )
   where
     rewrite ::
-      Attrs.AttrName ->
+      Attrs.Name ->
       (Attrs.Attributes, Text) ->
       Identity Fence.Rewrite
     rewrite key (attrs, text)
