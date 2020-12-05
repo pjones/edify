@@ -8,7 +8,7 @@ maintainer:         Peter Jones <pjones@devalot.com>
 copyright:          Copyright (c) 2013-2020 Peter Jones
 category:           Text
 build-type:         Simple
-tested-with:        GHC ==8.8.3
+tested-with:        GHC ==8.6.5 || ==8.8.4 || ==8.10.2
 homepage:           https://github.com/pjones/edify
 bug-reports:        https://github.com/pjones/edify/issues
 synopsis:
