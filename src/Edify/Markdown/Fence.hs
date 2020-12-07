@@ -32,7 +32,7 @@ where
 
 import Control.Lens ((.~))
 import qualified Data.Attoparsec.Text as Atto
-import Data.Functor.Foldable (Fix (..), cata, embed, para, project)
+import Data.Functor.Foldable (Fix (..), cata, embed, project)
 import Data.Generics.Labels ()
 import qualified Data.Text.Lazy.Builder as LTB
 import Edify.JSON
@@ -374,9 +374,9 @@ rewrite ::
   Fence t ->
   -- | The updated fence structure.
   f (Rewritten t)
-rewrite encode parser f = para go
+rewrite encode parser f = cata go
   where
-    go :: FenceF t (Fence t, f (Rewritten t)) -> f (Rewritten t)
+    go :: FenceF t (f (Rewritten t)) -> f (Rewritten t)
     go = \case
       FenceBody b -> pure (Right $ embed (FenceBody b))
       CodeFence char props body ->
@@ -390,8 +390,7 @@ rewrite encode parser f = para go
                         $ fromMaybe body rewriteBody
               )
       DivFence props body ->
-        traverse snd body
-          <&> sequenceA
+        sequenceA body <&> sequenceA
           >>= either
             (pure . Left)
             ( \bodies -> do
