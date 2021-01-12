@@ -12,23 +12,17 @@
 --   contained in the LICENSE file.
 --
 -- License: Apache-2.0
-module Main
+module CompilerTest
   ( main,
   )
 where
 
-import qualified CompilerTest
-import qualified MarkdownTest
-import qualified NarrowTest
-import Test.Tasty
+import qualified Edify.Compiler.CycleTest as CycleTest
+import Test.Tasty (TestTree, testGroup)
 
-main :: IO ()
-main = do
-  tests <-
-    sequence
-      [ NarrowTest.main,
-        MarkdownTest.main,
-        CompilerTest.main
+main :: IO TestTree
+main =
+  testGroup "Compiler"
+    <$> sequence
+      [ CycleTest.main
       ]
-
-  defaultMain (testGroup "Tests" tests)

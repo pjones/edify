@@ -19,13 +19,15 @@ where
 
 import Control.Lens (at, (?~), (^.))
 import Data.Generics.Labels ()
+import Data.List (isSuffixOf)
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy.Builder as LTB
 import qualified Edify.Markdown.Attributes as Attrs
 import Edify.Markdown.Common (wholelineP)
 import Edify.Markdown.CommonTest (parseOnly)
 import qualified Edify.Markdown.Fence as Fence
-import System.FilePath ((</>))
+import qualified Edify.Text.Indent as Indent
+import System.FilePath (takeFileName)
 import Test.Tasty
 import Test.Tasty.Golden (findByExtension, goldenVsString)
 
@@ -63,22 +65,44 @@ goldenFenceTests = do
 
 testRewrite :: IO TestTree
 testRewrite = do
-  let fileIn = dataDir </> "rewrite-a0.md"
-      fileCmp = dataDir </> "rewrite-a1.md"
+  files <-
+    findByExtension [".md"] dataDir
+      <&> ( filter
+              ( \fname ->
+                  let name = takeFileName fname
+                   in "rewrite-" `isPrefixOf` name
+                        && "0.md" `isSuffixOf` name
+              )
+              >>> map
+                ( \name ->
+                    ( name,
+                      reverse name
+                        & drop 4
+                        & reverse
+                        & (<> "1.md")
+                    )
+                )
+          )
   key <- Attrs.toName "rewrite" & maybe (fail "impossible") pure
-  pure $ testGroup "Rewrite" (one $ go key fileIn fileCmp)
+  pure $ testGroup "Rewrite" (map (go key) files)
   where
-    go :: Attrs.Name -> FilePath -> FilePath -> TestTree
-    go key fileIn fileCmp =
+    ts :: Indent.Tabstop
+    ts = Indent.defaultTabstop
+
+    go :: Attrs.Name -> (FilePath, FilePath) -> TestTree
+    go key (fileIn, fileCmp) =
       goldenVsString
         fileCmp
         fileCmp
         ( readFileLText fileIn
             >>= parseOnly (Fence.fenceP wholelineP)
-            <&> ( Fence.rewrite LTB.fromText wholelineP (rewrite key)
+            <&> ( Fence.rewrite ts LTB.fromText wholelineP (rewrite key)
                     >>> runIdentity
                     >>> either
-                      (("FAIL: " <>) >>> encodeUtf8)
+                      ( show
+                          >>> ("FAIL: " <>)
+                          >>> (encodeUtf8 :: Text -> LByteString)
+                      )
                       ( Fence.fenceT LTB.fromText
                           >>> LTB.toLazyText
                           >>> encodeUtf8
@@ -94,7 +118,17 @@ testRewrite = do
       | attrs ^. #attrPairs . at key == Just "yes" =
         mempty
           & #rewriteAttrs ?~ (attrs & #attrPairs . at key ?~ "no")
-          & #rewriteBody ?~ Text.replace "Hello" "Rewritten" text
+          & #rewriteBody
+            ?~ ( Text.replace "Hello" "Rewritten" text
+                   & addFences attrs
+               )
           & pure
       | otherwise =
         pure (Fence.Rewrite Nothing Nothing)
+
+    addFences :: Attrs.Attributes -> Text -> Text
+    addFences attrs body
+      | Just key <- Attrs.toName "add-fences",
+        Just "yes" <- attrs ^. #attrPairs . at key =
+        "```\n" <> body <> "```\n"
+      | otherwise = body

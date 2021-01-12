@@ -26,6 +26,7 @@ module Edify.Text.Narrow
 where
 
 import qualified Byline as B
+import Data.Aeson (FromJSON, ToJSON)
 import qualified Data.Attoparsec.Text as Atto
 import Data.Char (isSpace)
 import qualified Data.Text as Text
@@ -41,7 +42,8 @@ data Markers = Markers Text Text
 -- @since 0.5.0.0
 newtype Token = Token
   {unToken :: Text}
-  deriving (Show, Eq)
+  deriving stock (Generic, Show, Eq)
+  deriving (ToJSON, FromJSON) via Text
 
 -- | Types of errors that may occur while narrowing.
 --

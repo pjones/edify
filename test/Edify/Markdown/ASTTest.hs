@@ -50,7 +50,7 @@ goldenAstTests = do
         file
         file
         ( readFileLText file
-            >>= parseOnly (AST.markdownP Nothing)
+            >>= parseOnly AST.markdownP
               <&> ( AST.markdownT
                       >>> LTB.toLazyText
                       >>> encodeUtf8
@@ -60,7 +60,7 @@ goldenAstTests = do
 extractURLs :: FilePath -> IO [Text]
 extractURLs file =
   readFileLText (dataDir </> file)
-    >>= parseOnly (AST.markdownP Nothing)
+    >>= parseOnly AST.markdownP
     <&> (^.. AST.blocks . AST.urls)
 
 testExtractURLs :: Assertion

@@ -25,20 +25,24 @@ module Edify.Markdown.Fence
 
     -- * Rewriting Fences
     Rewrite (..),
+    RewriteError (..),
     Rewritten,
     rewrite,
   )
 where
 
-import Control.Lens ((.~))
+import Control.Lens ((.~), (^.), _2)
 import qualified Data.Attoparsec.Text as Atto
 import Data.Functor.Foldable (Fix (..), cata, embed, project)
 import Data.Generics.Labels ()
+import Data.Semigroup (Max (..))
+import qualified Data.Text as Text
 import qualified Data.Text.Lazy.Builder as LTB
 import Edify.JSON
 import Edify.Markdown.Attributes (Attributes)
 import qualified Edify.Markdown.Attributes as Attrs
 import Edify.Markdown.Common (endOfLineP, skipHorzSpace, wholelineP)
+import qualified Edify.Text.Indent as Indent
 
 -- | Fence block proprieties.
 --
@@ -96,12 +100,11 @@ fenceP p = (divP p <|> codeP) <&> concatAdjacentText
 -- | Div blocks.
 divP :: Atto.Parser t -> Atto.Parser (Fence t)
 divP parser = (Atto.<?> "fenced div block") $ do
-  indent <- many (Atto.satisfy Atto.isHorizontalSpace) <&> length
-  colons <- atLeastThreeP ':' <* skipHorzSpace
+  (indent, colons, char) <- fenceCharsP (== ':')
   attrs <- barewordP <|> Attrs.attributesP
   lineEnd <-
     skipHorzSpace
-      *> Atto.skipWhile (== ':')
+      *> Atto.skipWhile (== char)
       *> endOfLineP
   body <-
     Atto.manyTill
@@ -111,7 +114,7 @@ divP parser = (Atto.<?> "fenced div block") $ do
             embed . FenceBody <$> parser
           ]
       )
-      (closingP ':' indent Nothing)
+      (closingP char indent 3)
   let props =
         Props
           { fenceIndent = indent,
@@ -124,26 +127,20 @@ divP parser = (Atto.<?> "fenced div block") $ do
 -- | Fenced code blocks.
 codeP :: Atto.Parser (Fence t)
 codeP = (Atto.<?> "fenced code block") $ do
-  indent <- many (Atto.satisfy Atto.isHorizontalSpace) <&> length
-  c <- Atto.peekChar'
-  if c == '`' || c == '~'
-    then go indent c
-    else empty Atto.<?> "expecting fenced character ` or ~"
-  where
-    go :: Int -> Char -> Atto.Parser (Fence t)
-    go indent char = do
-      chars <- atLeastThreeP char <* skipHorzSpace
-      attrs <- barewordP <|> Attrs.attributesP <|> pure mempty
-      lineEnd <- endOfLineP
-      body <- Atto.manyTill wholelineP (closingP char indent (Just chars))
-      let props =
-            Props
-              { fenceIndent = indent,
-                fenceCount = chars,
-                fenceLineEnd = lineEnd,
-                fenceAttrs = attrs
-              }
-      pure $ embed (CodeFence char props (mconcat body))
+  (indent, chars, char) <- fenceCharsP (\c -> c == '`' || c == '~')
+  attrs <- barewordP <|> Attrs.attributesP <|> pure mempty
+  lineEnd <- endOfLineP
+  body <- Atto.manyTill wholelineP (closingP char indent chars)
+  let props =
+        Props
+          { fenceIndent = indent,
+            fenceCount = chars,
+            fenceLineEnd = lineEnd,
+            fenceAttrs = attrs
+          }
+  pure $
+    embed $
+      CodeFence char props (mconcat body)
 
 -- | The closing of a fence block.
 closingP ::
@@ -151,25 +148,35 @@ closingP ::
   Char ->
   -- | The indentation level.
   Int ->
-  -- | Whether the fence character needs to exist exactly N times
-  -- or any count >= 3.
-  Maybe Int ->
+  -- | Minimum number of times the fence character need to be present.
+  Int ->
   -- | The parser that returns unit.
   Atto.Parser ()
-closingP char indent exactly =
+closingP char indent count =
   Atto.count indent (Atto.satisfy Atto.isHorizontalSpace)
-    *> maybe
-      (atLeastThreeP char $> ())
-      (\n -> Atto.count n (Atto.char char) $> ())
-      exactly
+    *> atLeastP count (== char)
     *> (endOfLineP $> ())
 
--- | Read /N/ copies of 'Char', then any remaining instances.
-atLeastThreeP :: Char -> Atto.Parser Int
-atLeastThreeP c = (Atto.<?> ("at least three " <> one c)) $ do
-  _ <- Atto.count 3 (Atto.char c)
+-- | Parse the start of a fence with the given fence character.
+--
+-- Returns:
+--
+--  * @_1@: Indentation level
+--  * @_2@: Number of fence characters
+--  * @_3@: The fence character used.
+fenceCharsP :: (Char -> Bool) -> Atto.Parser (Int, Int, Char)
+fenceCharsP pred = do
+  indent <- many (Atto.satisfy Atto.isHorizontalSpace) <&> length
+  (chars, char) <- atLeastP 3 pred <* skipHorzSpace
+  pure (indent, chars, char)
+
+-- | Read /N/ copies of a 'Char', then any remaining instances.
+atLeastP :: Int -> (Char -> Bool) -> Atto.Parser (Int, Char)
+atLeastP n pred = (Atto.<?> ("at least " <> show n <> " fence characters")) $ do
+  c <- Atto.satisfy pred
+  _ <- Atto.count (n - 1) (Atto.char c)
   cs <- many (Atto.char c)
-  pure (length cs + 3)
+  pure (length cs + n, c)
 
 -- | Shortcut for an attribute list with a single class.
 --
@@ -351,10 +358,24 @@ instance Semigroup Rewrite where
 instance Monoid Rewrite where
   mempty = Rewrite Nothing Nothing
 
+-- | Error information when a rewrite fails.
+--
+-- @since 0.5.0.0
+data RewriteError = RewriteError
+  { -- | The original fence rendered as text.
+    errorRenderedFence :: !Text,
+    -- | The failed rewrite request.
+    errorRewriteRequest :: !Rewrite,
+    -- | The associated error message.
+    errorMessage :: !String
+  }
+  deriving stock (Generic, Show)
+  deriving (ToJSON, FromJSON) via GenericJSON RewriteError
+
 -- | Helper type mostly to reduce keyboard typing.
 --
 -- @since 0.5.0.0
-type Rewritten t = Either String (Fence t)
+type Rewritten t = Either RewriteError (Fence t)
 
 -- | A traversal that can rewrite portions of the recursive fence
 -- structure.
@@ -364,6 +385,9 @@ rewrite ::
   forall t f.
   Semigroup t =>
   Monad f =>
+  -- | The width of a tab character.  Used to manipulate body
+  -- indentation.
+  Indent.Tabstop ->
   -- | A function to convert value of type @t@ to a text builder.
   (t -> LTB.Builder) ->
   -- | Parser used to post-process a rewritten body.
@@ -374,21 +398,27 @@ rewrite ::
   Fence t ->
   -- | The updated fence structure.
   f (Rewritten t)
-rewrite encode parser f = cata go
+rewrite tabstop encode parser f = cata go
   where
     go :: FenceF t (f (Rewritten t)) -> f (Rewritten t)
     go = \case
       FenceBody b -> pure (Right $ embed (FenceBody b))
-      CodeFence char props body ->
-        f (fenceAttrs props, body)
-          <&> ( \Rewrite {..} ->
-                  Right $
-                    embed $
-                      CodeFence
-                        char
-                        (attrs rewriteAttrs props)
-                        $ fromMaybe body rewriteBody
-              )
+      CodeFence char props body -> do
+        Rewrite {..} <-
+          f
+            ( fenceAttrs props,
+              Indent.unindent tabstop body
+            )
+        case rewriteBody of
+          Nothing ->
+            CodeFence char (attrs rewriteAttrs props) body
+              & embed
+              & Right
+              & pure
+          Just b ->
+            fixupCodeBody tabstop char (attrs rewriteAttrs props) b
+              & Right
+              & pure
       DivFence props body ->
         sequenceA body <&> sequenceA
           >>= either
@@ -398,14 +428,28 @@ rewrite encode parser f = cata go
                       foldMap (fenceT encode) bodies
                         & LTB.toLazyText
                         & toStrict
-                Rewrite {..} <- f (fenceAttrs props, text)
+                    rendered =
+                      DivFence props [embed $ FenceBody text]
+                        & embed
+                        & fenceT LTB.fromText
+                        & LTB.toLazyText
+                        & toStrict
+                request@Rewrite {..} <-
+                  f
+                    ( fenceAttrs props,
+                      Indent.unindent tabstop text
+                    )
                 case rewriteBody of
                   Nothing ->
                     DivFence (attrs rewriteAttrs props) bodies
                       & embed
                       & Right
                       & pure
-                  Just b -> pure (parse (attrs rewriteAttrs props) b)
+                  Just b ->
+                    Indent.indent (fenceIndent props) tabstop b
+                      & parse (attrs rewriteAttrs props)
+                      & first (RewriteError rendered request)
+                      & pure
             )
 
     -- Optionally update the attributes inside the given 'Props'.
@@ -415,7 +459,7 @@ rewrite encode parser f = cata go
       Just a -> #fenceAttrs .~ a
 
     -- Parse the body of a div fence and reconstruct it.
-    parse :: Props -> Text -> Rewritten t
+    parse :: Props -> Text -> Either String (Fence t)
     parse props body =
       let p =
             Atto.many1 $
@@ -426,3 +470,42 @@ rewrite encode parser f = cata go
                 ]
        in Atto.parseOnly (p <* Atto.endOfInput) body
             <&> (DivFence props >>> embed >>> concatAdjacentText)
+
+-- | Ensure the body of a fenced code block is well formed.
+-- Specifically, if the body contains fence characters, force the fence
+-- to have more than the body.  Also indents the body correctly.
+--
+-- @since 0.5.0.0
+fixupCodeBody :: Indent.Tabstop -> Char -> Props -> Text -> Fence t
+fixupCodeBody tabstop char props text =
+  let body =
+        Indent.indent (fenceIndent props) tabstop text
+          & ensureFinalNewline
+      count = maxFalseFenceLength body
+      props' =
+        if count >= fenceCount props
+          then props {fenceCount = count + 1}
+          else props
+   in embed $ CodeFence char props' body
+  where
+    -- Count the number of fence characters per line in the body.
+    maxFalseFenceLength :: Text -> Int
+    maxFalseFenceLength text =
+      either (const 0) id $
+        (`Atto.parseOnly` text) $
+          many
+            ( Atto.choice
+                [ (fenceCharsP (== char) <&> (^. _2)) <* wholelineP,
+                  wholelineP $> 0
+                ]
+            )
+            >>= \case
+              [] -> pure 0
+              ns -> foldMap Max ns & getMax & pure
+    ensureFinalNewline :: Text -> Text
+    ensureFinalNewline text =
+      Text.unsnoc text & \case
+        Just (t, c)
+          | c == '\n' -> text
+          | otherwise -> t <> one c <> fenceLineEnd props
+        Nothing -> text

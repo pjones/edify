@@ -17,6 +17,9 @@ module Edify.JSON
     RecursiveJSON (..),
     Aeson.ToJSON,
     Aeson.FromJSON,
+
+    -- * Parsing w/ Default Values
+    Default,
   )
 where
 
@@ -78,3 +81,12 @@ instance
   Aeson.FromJSON (RecursiveJSON r)
   where
   parseJSON = fmap (RecursiveJSON . Recursion.embed) . Aeson.parseJSON
+
+-- | A type family for types that have a default value.
+--
+-- When the @f@ argument is 'Maybe', the value is wrapped in a 'Maybe'.
+--
+-- When the @f@ arguments is 'Identity' the type is exposed directly.
+type family Default (f :: * -> *) a where
+  Default Maybe a = Maybe a
+  Default Identity a = a

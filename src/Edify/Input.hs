@@ -17,15 +17,14 @@ module Edify.Input
     Error (..),
     filePathToInput,
     filePathFromInput,
-    makeFilePathAbsoluteTo,
     readInput,
   )
 where
 
 import qualified Byline as B
 import qualified Data.Text.Lazy.IO as LText
-import qualified System.Directory as Dir
 import System.Directory (getCurrentDirectory)
+import qualified System.Directory as Dir
 import System.FilePath ((</>))
 import qualified System.FilePath as FilePath
 
@@ -38,7 +37,7 @@ data Input
   | -- | Read input from the given handle.
     FromHandle Handle
   | -- | Use the given 'Text' as input.
-    FromText Text
+    FromText LText
   deriving (Show)
 
 instance B.ToStylizedText Input where
@@ -51,7 +50,7 @@ instance B.ToStylizedText Input where
     -- B.text "input handle"
     FromText t ->
       "text:\n====\n"
-        <> (B.text t <> B.fg B.green)
+        <> (B.text (toStrict t) <> B.fg B.green)
         <> "\n====\n"
 
 -- | Errors that may occur while processing input.
@@ -91,24 +90,6 @@ filePathFromInput = \case
   FromHandle _ -> liftIO getCurrentDirectory <&> Left
   FromText _ -> liftIO getCurrentDirectory <&> Left
 
--- | Make a 'FilePath' absolute when it is relative to another
--- 'FilePath'.
---
--- @since 0.5.0.0
-makeFilePathAbsoluteTo ::
-  -- | The existing absolute path of a file to compare to.
-  FilePath ->
-  -- | The relative path to make absolute.
-  FilePath ->
-  -- | The resolved file path.
-  FilePath
-makeFilePathAbsoluteTo context file
-  | FilePath.isAbsolute file = file
-  | otherwise =
-    FilePath.normalise context
-      & FilePath.takeDirectory
-      & (</> FilePath.normalise file)
-
 -- | Read and return input.
 --
 -- @since 0.5.0.0
@@ -122,4 +103,35 @@ readInput = \case
   FromHandle h ->
     liftIO (LText.hGetContents h) <&> Right
   FromText text ->
-    pure (Right $ toLazy text)
+    pure (Right text)
+
+-- | Loading JSON data from a file.
+--
+-- @since 0.5.0.0
+-- parseFromFile ::
+--   forall m a.
+--   MonadIO m =>
+--   Aeson.FromJSON a =>
+--   FilePath ->
+--   m (Either String a)
+-- parseFromFile (defaultExtension "yml" -> file) = do
+--   unlessM (liftIO $ doesFileExist file) $
+--     throwError (
+--   case takeExtension file of
+--     ".json" -> fromJSON file
+--     _ -> fromYAML file
+--   where
+--     -- Load options from YAML via the FromJSON instance.
+--     fromYAML :: FilePath -> m (Either String a)
+--     fromYAML file = undefined
+--     -- Load options from JSON via the FromJSON instance.
+--     fromJSON :: FilePath -> m (Either String a)
+--     fromJSON = fmap Aeson.eitherDecode . readFileLBS
+
+-- | If a file name is missing an extension, add it.
+--
+-- @since 0.5.0.0
+-- defaultExtension :: String -> FilePath -> FilePath
+-- defaultExtension ext file
+--   | hasExtension file = file
+--   | otherwise = file <.> ext

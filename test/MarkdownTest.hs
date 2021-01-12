@@ -22,6 +22,7 @@ import qualified Edify.Markdown.AttributesTest as AttributesTest
 import qualified Edify.Markdown.FenceTest as FenceTest
 import qualified Edify.Markdown.HeadingTest as HeadingTest
 import qualified Edify.Markdown.ImageTest as ImageTest
+import qualified Edify.Markdown.IncludeTest as IncludeTest
 import qualified Edify.Markdown.LinkTest as LinkTest
 import Test.Tasty (TestTree, testGroup)
 
@@ -34,5 +35,6 @@ main =
         LinkTest.main,
         ImageTest.main,
         HeadingTest.main,
+        IncludeTest.main,
         ASTTest.main
       ]

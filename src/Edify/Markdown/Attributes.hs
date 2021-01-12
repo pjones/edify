@@ -17,6 +17,7 @@
 module Edify.Markdown.Attributes
   ( -- * Attribute Parsing and Generating
     Attributes (..),
+    at,
     attributesP,
     attributesT,
     attributesShortcutT,
@@ -41,7 +42,8 @@ module Edify.Markdown.Attributes
   )
 where
 
-import Control.Lens (at, (%~), (?~))
+import Control.Lens ((%~), (.~), (?~), (^.))
+import qualified Control.Lens as Lens
 import qualified Data.Aeson as Aeson
 import qualified Data.Attoparsec.Text.Lazy as Atto
 import Data.Char (isAlpha, isAlphaNum, isAscii, isHexDigit, isLetter, isPrint, isSpace)
@@ -151,6 +153,25 @@ instance Semigroup Attributes where
 instance Monoid Attributes where
   mempty = Attributes Nothing mempty mempty
 
+-- | A variant of 'Lens.at' that ignores invalid keys.
+--
+-- @since 0.5.0.0
+at :: Text -> Lens.Lens' Attributes (Maybe Text)
+at key =
+  case toName key of
+    Nothing -> Lens.lens (const Nothing) const
+    Just name -> Lens.lens (getter name) (setter name)
+  where
+    getter :: Name -> Attributes -> Maybe Text
+    getter name attrs = attrs ^. #attrPairs . Lens.at name <&> toText
+
+    setter :: Name -> Attributes -> Maybe Text -> Attributes
+    setter name attrs text =
+      attrs
+        & #attrPairs
+          . Lens.at name
+          .~ (Value <$> text)
+
 -- | Internal type for parsing attributes.
 --
 -- @since 0.5.0.0
@@ -180,7 +201,7 @@ attributesP =
           ( \case
               AttrID t -> #attrID ?~ t
               AttrClass t -> #attrClasses %~ (t :)
-              AttrKeyVal k v -> #attrPairs . at k ?~ v
+              AttrKeyVal k v -> #attrPairs . Lens.at k ?~ v
           )
           (Attributes Nothing mempty mempty)
           attrs

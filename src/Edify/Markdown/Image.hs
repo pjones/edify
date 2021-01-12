@@ -20,7 +20,7 @@ module Edify.Markdown.Image
   )
 where
 
-import qualified Data.Attoparsec.Text.Lazy as Atto
+import qualified Data.Attoparsec.Text as Atto
 import qualified Data.Text.Lazy.Builder as LTB
 import Edify.JSON
 import Edify.Markdown.Common (matchingBracketP)

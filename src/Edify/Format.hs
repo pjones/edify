@@ -15,6 +15,7 @@
 module Edify.Format
   ( Format (..),
     Error (..),
+    Token (..),
     defaultFormat,
     markdown,
     fromFileExtension,
@@ -23,8 +24,8 @@ where
 
 import qualified Byline as B
 import qualified Edify.Format.Markdown as Markdown
+import Edify.Text.Narrow (Token (..))
 import qualified Edify.Text.Narrow as Narrow
-import Edify.Text.Narrow (Token)
 import System.FilePath (takeExtension)
 
 -- | Errors that can occur.
@@ -73,7 +74,8 @@ markdown = Format {..}
 --
 -- @since 0.5.0.0
 fromFileExtension :: FilePath -> Format
-fromFileExtension = takeExtension >>> \case
-  ".md" -> markdown
-  ".markdown" -> markdown
-  _ -> defaultFormat
+fromFileExtension =
+  takeExtension >>> \case
+    ".md" -> markdown
+    ".markdown" -> markdown
+    _ -> defaultFormat

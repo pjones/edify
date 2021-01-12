@@ -14,6 +14,7 @@
 -- License: Apache-2.0
 module Edify.Markdown.AST
   ( AST,
+    unAST,
     Block (..),
     InlineF (..),
     Inline,
@@ -22,6 +23,7 @@ module Edify.Markdown.AST
     blocks,
     urls,
     fences,
+    fencesRewrite,
   )
 where
 
@@ -30,6 +32,7 @@ import Data.Functor.Foldable (Fix (..), cata)
 import Data.Generics.Labels ()
 import qualified Data.Text.Lazy.Builder as LTB
 import Edify.JSON
+import Edify.Markdown.Attributes (Attributes)
 import Edify.Markdown.Common (endOfLineP, wholelineP)
 import Edify.Markdown.Fence (Fence)
 import qualified Edify.Markdown.Fence as Fence
@@ -37,9 +40,11 @@ import Edify.Markdown.Heading (Heading)
 import qualified Edify.Markdown.Heading as Heading
 import Edify.Markdown.Image (Image)
 import qualified Edify.Markdown.Image as Image
+import Edify.Markdown.Include (Include)
+import qualified Edify.Markdown.Include as Include
 import Edify.Markdown.Link (Link)
 import qualified Edify.Markdown.Link as Link
-import Edify.Sourced
+import qualified Edify.Text.Indent as Indent
 
 -- | Inline elements in Markdown.
 --
@@ -67,6 +72,7 @@ data Block
   = HeadingBlock Heading
   | FenceBlock (Fence [Inline])
   | LinkDefBlock Link.Definition
+  | IncludeBlock Include
   | ParaBlock [Inline]
   | BlankLine Text
   deriving stock (Generic)
@@ -76,13 +82,13 @@ data Block
 -- list of trees.
 --
 -- @since 0.5.0.0
-newtype AST = AST {unAST :: [Sourced Block]}
+newtype AST = AST {unAST :: [Block]}
 
 -- | Markdown parser.
 --
 -- @since 0.5.0.0
-markdownP :: Location -> Atto.Parser AST
-markdownP loc = AST . map (`Sourced` loc) <$> Atto.many1 blockP
+markdownP :: Atto.Parser AST
+markdownP = AST <$> Atto.many1 blockP
 
 -- | Parser a Markdown block.
 --
@@ -96,7 +102,14 @@ blockP =
         -- Disabled block, so parse it as a paragraph:
         ParaBlock <$> inlineP
       | otherwise ->
-        Atto.choice [blankP, headingP, fenceP, linkDefP, paraP]
+        Atto.choice
+          [ blankP,
+            headingP,
+            fenceP,
+            linkDefP,
+            includeP,
+            paraP
+          ]
   where
     blankP :: Atto.Parser Block
     blankP = BlankLine <$> endOfLineP
@@ -113,6 +126,9 @@ blockP =
 
     linkDefP :: Atto.Parser Block
     linkDefP = LinkDefBlock <$> Link.linkDefinitionP
+
+    includeP :: Atto.Parser Block
+    includeP = IncludeBlock <$> Include.includeP
 
     paraP :: Atto.Parser Block
     paraP = ParaBlock <$> inlineP
@@ -194,31 +210,36 @@ reinterpretInlineP =
 --
 -- @since 0.5.0.0
 markdownT :: AST -> LTB.Builder
-markdownT = unAST >>> map sourced >>> foldMap go
+markdownT = unAST >>> foldMap go
   where
     go :: Block -> LTB.Builder
     go = \case
       HeadingBlock h -> Heading.headingT h
-      FenceBlock f -> Fence.fenceT (foldMap inlineT) f
+      FenceBlock f -> Fence.fenceT inlineT f
       LinkDefBlock def -> Link.linkDefinitionT def
-      ParaBlock ins -> foldMap inlineT ins
+      IncludeBlock inc -> Include.includeT inc
+      ParaBlock ins -> inlineT ins
       BlankLine t -> LTB.fromText t
 
-    inlineT :: Inline -> LTB.Builder
-    inlineT = cata $ \case
-      TextChunkF t -> LTB.fromText t
-      ImageF img -> Image.imageT img
-      LinkF lnk -> Link.linkT mconcat lnk
+-- | FIXME: Write description for inlineT
+--
+-- @since 0.5.0.0
+inlineT :: [Inline] -> LTB.Builder
+inlineT = foldMap $
+  cata $ \case
+    TextChunkF t -> LTB.fromText t
+    ImageF img -> Image.imageT img
+    LinkF lnk -> Link.linkT mconcat lnk
 
 -- | Traversal for all blocks in a Markdown AST.
 --
 -- @since 0.5.0.0
 blocks ::
   Applicative f =>
-  (Sourced Block -> f (Sourced Block)) ->
+  (Block -> f [Block]) ->
   AST ->
   f AST
-blocks f (AST blocks) = AST <$> traverse f blocks
+blocks f (AST blocks) = AST . concat <$> traverse f blocks
 
 -- | Traversal for all URLs in a block of Markdown.
 --
@@ -227,17 +248,15 @@ urls ::
   forall f.
   Applicative f =>
   (Text -> f Text) ->
-  Sourced Block ->
-  f (Sourced Block)
-urls f (Sourced block loc) = (`Sourced` loc) <$> go block
+  Block ->
+  f [Block]
+urls f =
+  fmap one . \case
+    FenceBlock fb -> FenceBlock <$> Fence.bodies (traverse inline) fb
+    LinkDefBlock def -> LinkDefBlock <$> #defURL f def
+    ParaBlock pb -> ParaBlock <$> traverse inline pb
+    other -> pure other
   where
-    go :: Block -> f Block
-    go = \case
-      FenceBlock fb -> FenceBlock <$> Fence.bodies (traverse inline) fb
-      LinkDefBlock def -> LinkDefBlock <$> #defURL f def
-      ParaBlock pb -> ParaBlock <$> traverse inline pb
-      other -> pure other
-
     inline :: Inline -> f Inline
     inline = cata $ \case
       TextChunkF t -> pure (Fix $ TextChunkF t)
@@ -251,11 +270,24 @@ fences ::
   forall f.
   Applicative f =>
   (Fence [Inline] -> f (Fence [Inline])) ->
-  Sourced Block ->
-  f (Sourced Block)
-fences f (Sourced block loc) = (`Sourced` loc) <$> go block
-  where
-    go :: Block -> f Block
-    go = \case
-      FenceBlock fb -> FenceBlock <$> f fb
-      other -> pure other
+  Block ->
+  f Block
+fences f = \case
+  FenceBlock fb -> FenceBlock <$> f fb
+  other -> pure other
+
+-- | Traversal for rewriting fence blocks a la 'Fence.rewrite'.
+--
+-- @since 0.5.0.0
+fencesRewrite ::
+  forall f.
+  Monad f =>
+  Indent.Tabstop ->
+  ((Attributes, Text) -> f Fence.Rewrite) ->
+  Block ->
+  f (Either Fence.RewriteError Block)
+fencesRewrite tabstop f = \case
+  FenceBlock fb ->
+    FenceBlock <<$>> Fence.rewrite tabstop inlineT inlineP f fb
+  other ->
+    pure (Right other)
