@@ -47,13 +47,13 @@ data Markdown = Markdown
 -- @since 0.5.0.0
 compile :: Input -> Compiler Markdown
 compile input =
-  parse input
-    >>= AST.blocks process
-    <&> Markdown input
+  C.readInput input $ \content ->
+    parse content
+      >>= AST.blocks process
+      <&> Markdown input
   where
-    parse :: Input -> Compiler AST.AST
-    parse src = do
-      content <- C.readInput src
+    parse :: LText -> Compiler AST.AST
+    parse content =
       case Atto.parse (AST.markdownP <* Atto.endOfInput) content of
         Atto.Fail _ context msg ->
           C.abort (C.ParseError input context msg)
@@ -77,11 +77,11 @@ compile input =
           Nothing -> compile (Input.FromFile includeFile)
           Just token -> do
             let format = Format.fromFileExtension includeFile
-            content <- C.readInput (Input.FromFile includeFile)
-            Format.narrow format token content
-              & either
-                (C.abort . C.FormatError input)
-                (compile . Input.FromText)
+            C.readInput (Input.FromFile includeFile) $ \content ->
+              Format.narrow format token content
+                & either
+                  (C.abort . C.FormatError input)
+                  (compile . Input.FromText)
         pure (AST.unAST markdownAST)
       other -> rewrite other
 
@@ -112,23 +112,23 @@ rewriteInsert src
     insert :: FilePath -> Compiler Rewrite
     insert file = do
       let input = Input.FromFile file
-      text <- C.readInput input
-      body <- case src ^. _1 . Attrs.at "token" of
-        Nothing ->
-          pure text
-        Just token ->
-          let format = Format.fromFileExtension file
-           in Format.narrow format (Format.Token token) text
-                & either (C.abort . C.FormatError input) pure
-      mempty
-        & #rewriteAttrs
-          ?~ ( src ^. _1
-                 & Attrs.at "token" .~ Nothing
-                 & Attrs.at "insert" .~ Nothing
-                 & Attrs.at "inserted" ?~ toText file
-             )
-        & #rewriteBody ?~ toStrict body
-        & pure
+      C.readInput input $ \text -> do
+        body <- case src ^. _1 . Attrs.at "token" of
+          Nothing ->
+            pure text
+          Just token ->
+            let format = Format.fromFileExtension file
+             in Format.narrow format (Format.Token token) text
+                  & either (C.abort . C.FormatError input) pure
+        mempty
+          & #rewriteAttrs
+            ?~ ( src ^. _1
+                   & Attrs.at "token" .~ Nothing
+                   & Attrs.at "insert" .~ Nothing
+                   & Attrs.at "inserted" ?~ toText file
+               )
+          & #rewriteBody ?~ toStrict body
+          & pure
 
 -- | Generate a Markdown fence rewrite request if the given attributes
 -- are requesting the execution of a shell command.

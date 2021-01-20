@@ -27,6 +27,7 @@ where
 
 import Control.Monad.Except (mapExceptT)
 import qualified Edify.Compiler.Project as Project
+import qualified Edify.Compiler.User as User
 import Edify.JSON
 import qualified Options.Applicative as O
 import qualified System.Directory as Directory
@@ -34,10 +35,14 @@ import qualified System.Directory as Directory
 -- | Options that control how a project will be processed.
 --
 -- @since 0.5.0.0
-data OptionsF (f :: * -> *) = Options
-  { -- | The top-level project directory.
+data OptionsF (f :: Type -> Type) = Options
+  { -- | Ignore fingerprinting and run all commands.
+    optionsUnsafeAllowCommands :: Default f Bool,
+    -- | The top-level project directory.
     optionsProjectDirectory :: Default f FilePath,
-    -- |
+    -- | Configuration stored in a user's file system.
+    optionsUserConfig :: User.UserF f,
+    -- | Configuration specific to the current project.
     optionsProjectConfig :: Project.ProjectF f
   }
   deriving stock (Generic)
@@ -45,9 +50,15 @@ data OptionsF (f :: * -> *) = Options
 instance Semigroup (OptionsF Maybe) where
   (<>) x y =
     Options
-      { optionsProjectDirectory =
+      { optionsUnsafeAllowCommands =
+          optionsUnsafeAllowCommands x
+            <|> optionsUnsafeAllowCommands y,
+        optionsProjectDirectory =
           optionsProjectDirectory x
             <|> optionsProjectDirectory y,
+        optionsUserConfig =
+          optionsUserConfig x
+            <> optionsUserConfig y,
         optionsProjectConfig =
           optionsProjectConfig x
             <> optionsProjectConfig y
@@ -56,7 +67,9 @@ instance Semigroup (OptionsF Maybe) where
 instance Monoid (OptionsF Maybe) where
   mempty =
     Options
-      { optionsProjectDirectory = Nothing,
+      { optionsUnsafeAllowCommands = Nothing,
+        optionsProjectDirectory = Nothing,
+        optionsUserConfig = mempty,
         optionsProjectConfig = mempty
       }
 
@@ -76,6 +89,13 @@ fromCommandLine :: O.Parser (OptionsF Maybe)
 fromCommandLine =
   Options
     <$> optional
+      ( O.switch $
+          mconcat
+            [ O.long "unsafe-allow-commands",
+              O.help "Disable safety features and run all commands"
+            ]
+      )
+    <*> optional
       ( O.strOption $
           mconcat
             [ O.long "top",
@@ -84,14 +104,18 @@ fromCommandLine =
               O.help "Top-level project directory [default: pwd]"
             ]
       )
+    <*> pure mempty
     <*> Project.fromCommandLine
 
--- | FIXME: Write documentation for Error
+-- | Errors that may occur while options are being resolved.
 --
 -- @since 0.5.0.0
 data Error
-  = RuntimeError !String
-  | ProjectConfigError !Project.Error
+  = -- | This error only exists for 'mapExceptT.  FIXME: Probably
+    -- remove this constructor and dump the Semigroup/Monoid instances.
+    RuntimeError !String
+  | -- | Errors while resolving the project configuration.
+    ProjectConfigError !Project.Error
   deriving stock (Generic, Show)
 
 instance Semigroup Error where
@@ -112,13 +136,17 @@ resolve Options {..} = runExceptT $ do
   top <- locateTopLevelDir
   liftIO (Directory.setCurrentDirectory top)
 
+  user <- User.resolve optionsUserConfig
+
   project <-
     Project.resolve optionsProjectConfig
       & mapExceptT (fmap (first ProjectConfigError))
 
   pure
     Options
-      { optionsProjectDirectory = top,
+      { optionsUnsafeAllowCommands = fromMaybe False optionsUnsafeAllowCommands,
+        optionsProjectDirectory = top,
+        optionsUserConfig = user,
         optionsProjectConfig = project
       }
   where

@@ -13,8 +13,7 @@
 --
 -- License: Apache-2.0
 module Edify.Compiler.Project
-  ( Project,
-    ProjectF (..),
+  ( ProjectF (..),
 
     -- * Parsing Project Options
     fromCommandLine,
@@ -30,10 +29,10 @@ import Edify.Text.Indent (Tabstop (..), defaultTabstop)
 import qualified Options.Applicative as Opt
 import qualified System.Directory as Directory
 
--- | FIXME: Write documentation for ProjectF f
+-- | Project-level configuration.
 --
 -- @since 0.5.0.0
-data ProjectF (f :: * -> *) = Project
+data ProjectF (f :: Type -> Type) = Project
   { -- | The directory where all generated files will be placed.
     projectOutputDirectory :: Default f FilePath,
     -- | The width of a tab character when converted to spaces.
@@ -66,12 +65,7 @@ deriving via (GenericJSON (ProjectF Maybe)) instance ToJSON (ProjectF Maybe)
 
 deriving via (GenericJSON (ProjectF Maybe)) instance FromJSON (ProjectF Maybe)
 
--- | FIXME: Write documentation for Project
---
--- @since 0.5.0.0
-type Project = ProjectF Identity
-
--- | FIXME: Write description for fromCommandLine
+-- | Parse project configuration on the command line.
 --
 -- @since 0.5.0.0
 fromCommandLine :: Opt.Parser (ProjectF Maybe)
@@ -106,16 +100,16 @@ fromCommandLine =
             )
       )
 
--- | FIXME: Write documentation for Error
+-- | Error that may occur while resolving project configuration.
 --
 -- @since 0.5.0.0
 data Error = MissingInputFilesError
   deriving stock (Generic, Show)
 
--- | FIXME: Write description for resolve
+-- | Resolve all values in a project configuration.
 --
 -- @since 0.5.0.0
-resolve :: MonadIO m => ProjectF Maybe -> ExceptT Error m Project
+resolve :: MonadIO m => ProjectF Maybe -> ExceptT Error m (ProjectF Identity)
 resolve Project {..} = do
   -- The list of input markdown files is mandatory and made absolute
   -- to the current directory which should already be the project

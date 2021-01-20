@@ -38,7 +38,7 @@ data Image = Image
   deriving stock (Generic, Show, Eq)
   deriving (ToJSON, FromJSON) via GenericJSON Image
 
--- | FIXME: Write description for src
+-- | A traversal over the URL for images.
 --
 -- @since 0.5.0.0
 src :: Applicative f => (Text -> f Text) -> Image -> f Image

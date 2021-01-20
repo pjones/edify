@@ -146,7 +146,7 @@ msc2pdf = do
   command "ps2pdf" [eps, raw]
   command "pdfcrop" [raw, dst]
 
--- | FIXME: Write description for assets
+-- | A map of all asset builders.
 --
 -- @since 0.5.0.0
 assets :: AssetMap

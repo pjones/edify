@@ -24,6 +24,7 @@ import qualified Data.ByteString.Base16 as Base16
 import Data.Generics.Labels ()
 import qualified Data.List as List
 import qualified Edify.Compiler.Options as Options
+import qualified System.Directory as Directory
 import System.FilePath ((</>))
 import qualified System.FilePath as FilePath
 
@@ -37,18 +38,22 @@ type Ext = FilePath
 --
 -- @since 0.5.0.0
 makeAbsoluteTo ::
+  MonadIO m =>
   -- | The existing absolute path of a file to compare to.
   FilePath ->
   -- | The relative path to make absolute.
   FilePath ->
   -- | The resolved file path.
-  FilePath
+  m FilePath
 makeAbsoluteTo context file
-  | FilePath.isAbsolute file = file
+  | FilePath.isAbsolute file =
+    liftIO (Directory.canonicalizePath file)
   | otherwise =
     FilePath.normalise context
       & FilePath.takeDirectory
       & (</> FilePath.normalise file)
+      & Directory.canonicalizePath
+      & liftIO
 
 -- | Translate a file name from a source document to a generated
 -- output document.  If the source document is outside the project
@@ -56,7 +61,7 @@ makeAbsoluteTo context file
 -- be decoded with 'toInputName'.
 --
 -- @since 0.5.0.0
-toOutputName :: Options.Options -> FilePath -> Ext -> FilePath
+toOutputName :: Options.OptionsF Identity -> FilePath -> Ext -> FilePath
 toOutputName options file ext =
   let input = options ^. #optionsProjectDirectory
       output = options ^. #optionsProjectConfig . #projectOutputDirectory
@@ -93,7 +98,7 @@ encodePathName file =
     & decodeUtf8
     & (FilePath.<.> FilePath.takeExtension file)
 
--- | FIXME: Write description for decodePathName
+-- | Inverse of 'encodePathName'.
 --
 -- @since 0.5.0.0
 decodePathName :: FilePath -> Maybe FilePath

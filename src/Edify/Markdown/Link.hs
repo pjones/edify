@@ -103,7 +103,7 @@ data Definition = Definition
   deriving stock (Generic, Show, Eq)
   deriving (ToJSON, FromJSON) via GenericJSON Definition
 
--- | FIXME: Write description for url
+-- | A @bitraverse@ over the URL and link text of a link.
 --
 -- @since 0.5.0.0
 traverseLink ::
@@ -215,7 +215,7 @@ definitionBodyP = do
   title <- optional titleP
   pure (url, title)
 
--- | FIXME: Write description for titleP
+-- | Parse an optional link title.
 --
 -- @since 0.5.0.0
 titleP :: Atto.Parser Text

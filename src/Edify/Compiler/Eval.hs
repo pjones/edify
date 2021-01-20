@@ -18,29 +18,33 @@ module Edify.Compiler.Eval
   ( Runtime (..),
     Eval,
     depends,
-    verifyFingerprint,
+    verifyCommand,
   )
 where
 
-import Control.Lens ((.=))
+import Control.Lens ((.=), (^.))
 import qualified Edify.Compiler.Cycle as Cycle
 import qualified Edify.Compiler.Error as Error
 import qualified Edify.Compiler.FilePath as FilePath
-import qualified Edify.Compiler.Lang as Lang
+import qualified Edify.Compiler.Fingerprint as Fingerprint
 import qualified Edify.Compiler.Options as Options
 import qualified Edify.Compiler.Stack as Stack
 import qualified Edify.Input as Input
 
--- | FIXME: Write documentation for Runtime
+-- | Compiler evaluation state.
 --
 -- @since 0.5.0.0
 data Runtime = Runtime
-  { stack :: Stack.Stack FilePath,
-    cycles :: Cycle.Deps FilePath
+  { -- | Stack of files that we are currently processing.
+    stack :: Stack.Stack FilePath,
+    -- | Track cycles in dependencies.
+    cycles :: Cycle.Deps FilePath,
+    -- | Cache of commands that are approved for executing.
+    fpcache :: Fingerprint.Cache Fingerprint.Commands
   }
   deriving stock (Generic, Show)
 
--- | FIXME: Write documentation for Eval a
+-- | Compiler evaluation type.
 --
 -- @since 0.5.0.0
 type Eval = StateT Runtime
@@ -50,7 +54,7 @@ type Eval = StateT Runtime
 -- @since 0.5.0.0
 depends ::
   forall m a.
-  Monad m =>
+  MonadIO m =>
   -- | Input to add as a dependency.
   Input.Input ->
   -- | Continuation if an error occurs.
@@ -70,29 +74,49 @@ depends input onerror onsuccess =
       Runtime {..} <- get
       case Stack.top stack of
         Nothing -> onsuccess (Just file)
-        Just top ->
-          let full = FilePath.makeAbsoluteTo top file
-           in case Cycle.depends top file cycles of
-                (Cycle.Cycles cs, _) ->
-                  onerror (Error.DependencyCycleError top file cs)
-                (Cycle.NoCycles, deps) -> do
-                  #cycles .= deps
-                  onsuccess (Just full)
+        Just top -> do
+          full <- FilePath.makeAbsoluteTo top file
+          case Cycle.depends top full cycles of
+            (Cycle.Cycles cs, _) ->
+              onerror (Error.DependencyCycleError top file cs)
+            (Cycle.NoCycles, deps) -> do
+              #cycles .= deps
+              onsuccess (Just full)
 
--- | FIXME: Write description for verifyFingerprint
+-- | Verify that a command has been approved for executing.
 --
 -- @since 0.5.0.0
-verifyFingerprint ::
+verifyCommand ::
+  MonadIO m =>
   -- | Compiler options.
   Options.Options ->
-  -- | The text to verify.
+  -- | The command to verify.
   Text ->
   -- | Function to output warnings.
   (Text -> Eval m ()) ->
   -- | Continuation if an error occurs.
-  (Lang.Error -> Eval m a) ->
+  (Error.Error -> Eval m a) ->
   -- | Continuation if the text was verified.
-  Eval m a ->
+  (Text -> Eval m a) ->
   -- | Final result.
   Eval m a
-verifyFingerprint = undefined
+verifyCommand options command onwarn onerror onsuccess
+  | options ^. #optionsUnsafeAllowCommands = do
+    onwarn ("Command forced due to --unsafe-allow-commands: " <> command)
+    onsuccess command
+  | otherwise = do
+    Runtime {fpcache, stack} <- get
+    case Stack.top stack of
+      Nothing ->
+        onerror (Error.InternalBugError "verifyCommand called on empty stack")
+      Just top -> do
+        let allowDir = options ^. #optionsUserConfig . #userCommandAllowDir
+        (fp, cache) <- Fingerprint.read fpcache allowDir top
+        #fpcache .= cache
+        case Fingerprint.verify command . fold <$> fp of
+          Nothing ->
+            onerror (Error.CommandBlockedError top command)
+          Just Fingerprint.Mismatch ->
+            onerror (Error.CommandBlockedError top command)
+          Just Fingerprint.Verified ->
+            onsuccess command

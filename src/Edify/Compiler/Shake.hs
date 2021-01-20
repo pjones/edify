@@ -50,21 +50,22 @@ eval options = Free.iterM go
     go = \case
       Lang.Options k ->
         k options
-      Lang.ReadInput input k ->
+      Lang.ReadInput input subexp k ->
         depends input abort $ \path -> do
           content <-
             Input.readInput (maybe input Input.FromFile path)
               >>= either (abort . Lang.InputError input) pure
-          case path of
-            Nothing -> k content
+          result <- case path of
+            Nothing -> eval options (subexp content)
             Just file -> do
               lift (Shake.need [file])
               #stack %= Stack.push file
-              result <- k content
+              result <- eval options (subexp content)
               #stack %= Stack.pop
               pure result
-      Lang.Exec (command, input) k ->
-        verifyFingerprint options command warn abort $ do
+          k result
+      Lang.Exec (pending, input) k ->
+        verifyCommand options pending warn abort $ \approved -> do
           dir <- gets stack >>= Stack.directory
           let copts =
                 [ Shake.Cwd dir,
@@ -72,7 +73,7 @@ eval options = Free.iterM go
                   Shake.Shell
                 ]
           Shake.Stdout (output :: LByteString) <-
-            lift $ Shake.command copts (toString command) []
+            lift $ Shake.command copts (toString approved) []
           k (decodeUtf8 output)
       Lang.Abort e ->
         abort e
@@ -81,11 +82,12 @@ eval options = Free.iterM go
     warn = toString >>> Shake.putWarn >>> lift
 
     abort :: Error.Error -> Eval Shake.Action a
-    abort e =
-      let str = Error.renderError e
-       in lift $ do
-            Shake.putError str
-            fail str
+    abort e = do
+      Runtime {stack} <- get
+      let str = Error.renderError e <> "\n" <> show stack
+      lift $ do
+        Shake.putError str
+        fail str
 
 -- | Generate Shake rules similar to 'Shake.%>' except this variant
 -- will automatically discover the name of the input file and pass that
@@ -113,7 +115,8 @@ fileExtensionRule options (extIn, extOut) f =
         let input = FilePath.toInputName options output
         f input output
 
--- | FIXME: Write description for markdownRule
+-- | Shake rule for processing and removing Edify features from a
+-- Markdown document, producing the target Markdown.
 --
 -- @since 0.5.0.0
 markdownRule :: Options.Options -> Shake.Rules ()
@@ -133,10 +136,11 @@ markdownRule options =
     runtime =
       Runtime
         { stack = mempty,
-          cycles = Cycle.emptyDeps
+          cycles = Cycle.emptyDeps,
+          fpcache = mempty
         }
 
--- | FIXME: Write description for rules
+-- | All Shake rules for building an entire project.
 --
 -- @since 0.5.0.0
 rules :: Options.Options -> Shake.Rules ()
@@ -148,7 +152,7 @@ rules options = do
       let md = FilePath.toOutputName options file "edify"
       Shake.want [md]
 
--- | FIXME: Write description for main
+-- | Build an Edify project.
 --
 -- @since 0.5.0.0
 main :: Options.Options -> IO ()

@@ -76,6 +76,7 @@ common dependencies
     , binary                ^>=0.8
     , binary-instances      ^>=1.0
     , byline                >=1.0  && <1.2
+    , containers            ^>=0.6
     , cryptohash-sha256     ^>=0.11
     , directory             ^>=1.3
     , fgl                   ^>=5.7
@@ -117,6 +118,7 @@ library
     Edify.Compiler.Project
     Edify.Compiler.Shake
     Edify.Compiler.Stack
+    Edify.Compiler.User
     Edify.Format
     Edify.Format.Markdown
     Edify.HTML.Entities

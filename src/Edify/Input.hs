@@ -25,8 +25,6 @@ import qualified Byline as B
 import qualified Data.Text.Lazy.IO as LText
 import System.Directory (getCurrentDirectory)
 import qualified System.Directory as Dir
-import System.FilePath ((</>))
-import qualified System.FilePath as FilePath
 
 -- | Where to read input from.
 --

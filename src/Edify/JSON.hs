@@ -87,6 +87,6 @@ instance
 -- When the @f@ argument is 'Maybe', the value is wrapped in a 'Maybe'.
 --
 -- When the @f@ arguments is 'Identity' the type is exposed directly.
-type family Default (f :: * -> *) a where
+type family Default (f :: Type -> Type) a where
   Default Maybe a = Maybe a
   Default Identity a = a

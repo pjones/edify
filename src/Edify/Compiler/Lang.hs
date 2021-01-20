@@ -1,3 +1,4 @@
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 -- |
@@ -50,16 +51,22 @@ type StandardInput = Text
 -- | Primary operations in the @Compiler@ language.
 --
 -- @since 0.5.0.0
-data CompilerF k
-  = -- | Access the options provided to the compiler.
-    Options (Options.Options -> k)
-  | -- | Load text from the given input source.
-    ReadInput Input (LText -> k)
-  | -- | Execute a shell command feeding it some input.
-    Exec (Command, StandardInput) (Text -> k)
-  | -- | Abort the compilation with the given error.
-    Abort Error
-  deriving stock (Functor)
+data CompilerF k where
+  -- | Access the options provided to the compiler.
+  Options :: (Options.Options -> k) -> CompilerF k
+  -- | Load text from the given input source.
+  ReadInput :: forall a k. Input -> (LText -> Compiler a) -> (a -> k) -> CompilerF k
+  -- | Execute a shell command feeding it some input.
+  Exec :: (Command, StandardInput) -> (Text -> k) -> CompilerF k
+  -- | Abort the compilation with the given error.
+  Abort :: Error -> CompilerF k
+
+instance Functor CompilerF where
+  fmap f = \case
+    Options g -> Options (f . g)
+    ReadInput x y g -> ReadInput x y (f . g)
+    Exec x g -> Exec x (f . g)
+    Abort e -> Abort e
 
 -- | Free monad wrapper for 'CompilerF'.
 --

@@ -26,7 +26,9 @@ import qualified Edify.Markdown.Fence as Fence
 --
 -- @since 0.5.0.0
 data Error
-  = -- | Errors from the "Input" module.
+  = -- | Errors that are from an internal bug.
+    InternalBugError !String
+  | -- | Errors from the "Input" module.
     InputError !Input.Input !Input.Error
   | -- | A cycle was found while recording a dependency.
     DependencyCycleError !FilePath !FilePath ![FilePath]
@@ -36,9 +38,11 @@ data Error
     ParseError !Input.Input ![String] !String
   | -- | Failed to parse the output of a div rewrite.
     DivRewriteError !Input.Input !Fence.RewriteError
+  | -- | Attempt to run an unverified command.
+    CommandBlockedError !FilePath !Text
   deriving stock (Generic, Show)
 
--- | FIXME: Write description for renderError
+-- | Render an error in a user-friendly way.
 --
 -- @since 0.5.0.0
 renderError :: Error -> String

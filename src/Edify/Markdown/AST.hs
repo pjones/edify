@@ -221,7 +221,7 @@ markdownT = unAST >>> foldMap go
       ParaBlock ins -> inlineT ins
       BlankLine t -> LTB.fromText t
 
--- | FIXME: Write description for inlineT
+-- | Convert a list of 'Inline' values into text.
 --
 -- @since 0.5.0.0
 inlineT :: [Inline] -> LTB.Builder
