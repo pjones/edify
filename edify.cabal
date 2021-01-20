@@ -19,7 +19,9 @@ description:        TODO
 ------------------------------------------------------------------------------
 extra-source-files:
   README.md
-  test/*.txt
+  test/data/**/*.golden
+  test/data/**/*.js
+  test/data/**/*.md
 
 ------------------------------------------------------------------------------
 flag maintainer
