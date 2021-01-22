@@ -17,6 +17,7 @@ module Edify.Compiler.Project
 
     -- * Parsing Project Options
     fromCommandLine,
+    fromMinimalCommandLine,
 
     -- * Resolving a Final Value
     Error (..),
@@ -65,6 +66,20 @@ deriving via (GenericJSON (ProjectF Maybe)) instance ToJSON (ProjectF Maybe)
 
 deriving via (GenericJSON (ProjectF Maybe)) instance FromJSON (ProjectF Maybe)
 
+-- | Option parser for non-optional files.
+--
+-- @since 0.5.0.0
+projectFilesP :: Opt.Parser (NonEmpty FilePath)
+projectFilesP =
+  fromList -- Safe due to @some@.
+    <$> some
+      ( Opt.strArgument $
+          mconcat
+            [ Opt.metavar "FILE",
+              Opt.help "Markdown file to process"
+            ]
+      )
+
 -- | Parse project configuration on the command line.
 --
 -- @since 0.5.0.0
@@ -89,16 +104,13 @@ fromCommandLine =
               Opt.help "Change the width of a tab character"
             ]
       )
-    <*> optional
-      ( fromList
-          <$> some
-            ( Opt.strArgument $
-                mconcat
-                  [ Opt.metavar "FILE",
-                    Opt.help "Markdown file to process"
-                  ]
-            )
-      )
+    <*> optional projectFilesP
+
+-- | Minimal command line parser.
+--
+-- @since 0.5.0.0
+fromMinimalCommandLine :: Opt.Parser (ProjectF Maybe)
+fromMinimalCommandLine = Project Nothing Nothing <$> optional projectFilesP
 
 -- | Error that may occur while resolving project configuration.
 --

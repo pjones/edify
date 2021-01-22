@@ -36,9 +36,7 @@ import qualified System.Directory as Directory
 --
 -- @since 0.5.0.0
 data OptionsF (f :: Type -> Type) = Options
-  { -- | Ignore fingerprinting and run all commands.
-    optionsUnsafeAllowCommands :: Default f Bool,
-    -- | The top-level project directory.
+  { -- | The top-level project directory.
     optionsProjectDirectory :: Default f FilePath,
     -- | Configuration stored in a user's file system.
     optionsUserConfig :: User.UserF f,
@@ -50,10 +48,7 @@ data OptionsF (f :: Type -> Type) = Options
 instance Semigroup (OptionsF Maybe) where
   (<>) x y =
     Options
-      { optionsUnsafeAllowCommands =
-          optionsUnsafeAllowCommands x
-            <|> optionsUnsafeAllowCommands y,
-        optionsProjectDirectory =
+      { optionsProjectDirectory =
           optionsProjectDirectory x
             <|> optionsProjectDirectory y,
         optionsUserConfig =
@@ -67,8 +62,7 @@ instance Semigroup (OptionsF Maybe) where
 instance Monoid (OptionsF Maybe) where
   mempty =
     Options
-      { optionsUnsafeAllowCommands = Nothing,
-        optionsProjectDirectory = Nothing,
+      { optionsProjectDirectory = Nothing,
         optionsUserConfig = mempty,
         optionsProjectConfig = mempty
       }
@@ -85,17 +79,14 @@ deriving via (GenericJSON (OptionsF Maybe)) instance FromJSON (OptionsF Maybe)
 -- | Command line parser.
 --
 -- @since 0.5.0.0
-fromCommandLine :: O.Parser (OptionsF Maybe)
-fromCommandLine =
+fromCommandLine ::
+  -- | A parser for project-related configuration.
+  O.Parser (Project.ProjectF Maybe) ->
+  -- | Complete option parser.
+  O.Parser (OptionsF Maybe)
+fromCommandLine projectParser =
   Options
     <$> optional
-      ( O.switch $
-          mconcat
-            [ O.long "unsafe-allow-commands",
-              O.help "Disable safety features and run all commands"
-            ]
-      )
-    <*> optional
       ( O.strOption $
           mconcat
             [ O.long "top",
@@ -105,7 +96,7 @@ fromCommandLine =
             ]
       )
     <*> pure mempty
-    <*> Project.fromCommandLine
+    <*> projectParser
 
 -- | Errors that may occur while options are being resolved.
 --
@@ -144,8 +135,7 @@ resolve Options {..} = runExceptT $ do
 
   pure
     Options
-      { optionsUnsafeAllowCommands = fromMaybe False optionsUnsafeAllowCommands,
-        optionsProjectDirectory = top,
+      { optionsProjectDirectory = top,
         optionsUserConfig = user,
         optionsProjectConfig = project
       }

@@ -17,6 +17,7 @@ module Main
   )
 where
 
+import qualified Edify.Command.Audit as Audit
 import qualified Edify.Command.Build as Build
 import qualified Options.Applicative as Options
 
@@ -24,15 +25,17 @@ import qualified Options.Applicative as Options
 -- import Paths_edify (version)
 
 -- | Type for the command line parser.
-newtype Command
+data Command
   = CmdBuild (Build.Flags Maybe)
+  | CmdAudit (Audit.Flags Maybe)
 
 -- | Command line parser.
 commands :: Options.Parser Command
 commands =
   Options.hsubparser
     ( mconcat
-        [ mkcmd "build" CmdBuild Build.desc
+        [ mkcmd "build" CmdBuild Build.desc,
+          mkcmd "audit" CmdAudit Audit.desc
         ]
     )
   where
@@ -57,5 +60,6 @@ main :: IO ()
 main =
   Options.execParser opts >>= \case
     CmdBuild flags -> Build.main flags
+    CmdAudit flags -> Audit.main flags
   where
     opts = Options.info (Options.helper <*> commands) mempty

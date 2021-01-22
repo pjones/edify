@@ -12,45 +12,54 @@
 --   contained in the LICENSE file.
 --
 -- License: Apache-2.0
-module Edify.Command.Build
+module Edify.Command.Audit
   ( Flags,
     desc,
     main,
   )
 where
 
+import qualified Edify.Compiler.Audit as Audit
 import qualified Edify.Compiler.Options as Options
 import qualified Edify.Compiler.Project as Project
-import qualified Edify.Compiler.Shake as Shake
 import qualified Options.Applicative as Opt
 
--- | Options that affect builds.
+-- | Options that affect audits.
 --
 -- @since 0.5.0.0
-data Flags (f :: * -> *) = Flags
-  { flagsCompilerOptions :: Options.OptionsF f,
-    flagsCommandSafety :: Shake.CommandSafety
+data Flags (f :: Type -> Type) = Flags
+  { flagsOutputMode :: Audit.Mode,
+    flagsCompilerOptions :: Options.OptionsF f
   }
+  deriving stock (Generic)
 
 -- | Command description and option parser.
 --
 -- @since 0.5.0.0
 desc :: (String, Opt.Parser (Flags Maybe))
-desc = ("Build one or more projects", flags)
+desc = ("Audit one or more projects", flags)
   where
     flags :: Opt.Parser (Flags Maybe)
     flags =
       Flags
-        <$> Options.fromCommandLine Project.fromCommandLine
-        <*> Opt.flag
-          Shake.RequireCommandFingerprints
-          Shake.UnsafeAllowAllCommands
-          ( mconcat
-              [ Opt.long "unsafe-allow-commands",
-                Opt.help "Disable safety features and run all commands",
-                Opt.hidden
-              ]
-          )
+        <$> asum
+          [ Opt.flag'
+              Audit.JsonAuditMode
+              ( mconcat
+                  [ Opt.long "json",
+                    Opt.help "Output a complete, machine-readable JSON doc"
+                  ]
+              ),
+            Opt.flag
+              Audit.BlockedCommandAuditMode
+              Audit.FullAuditMode
+              ( mconcat
+                  [ Opt.long "full",
+                    Opt.help "Produce a complete audit, not just exec info"
+                  ]
+              )
+          ]
+        <*> Options.fromCommandLine Project.fromMinimalCommandLine
 
 -- | Resolve all options to their final values.
 --
@@ -58,7 +67,7 @@ desc = ("Build one or more projects", flags)
 resolve :: MonadIO m => Flags Maybe -> m (Either Options.Error (Flags Identity))
 resolve Flags {..} =
   Options.resolve flagsCompilerOptions
-    <&> second (`Flags` flagsCommandSafety)
+    <&> second (Flags flagsOutputMode)
 
 -- | Execute a build.
 --
@@ -69,4 +78,4 @@ main = resolve >=> go
     go :: Either Options.Error (Flags Identity) -> IO ()
     go = \case
       Left e -> die (show e)
-      Right Flags {..} -> Shake.main flagsCompilerOptions flagsCommandSafety
+      Right Flags {..} -> Audit.main flagsOutputMode flagsCompilerOptions

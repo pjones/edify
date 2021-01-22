@@ -53,6 +53,8 @@ data Status
     Verified
   | -- | The fingerprint does not match.
     Mismatch
+  deriving (Generic, Show)
+  deriving (ToJSON, FromJSON) via GenericJSON Status
 
 class Fingerprinted a where
   type Subject a
