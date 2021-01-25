@@ -24,6 +24,7 @@ import qualified Data.ByteString.Base16 as Base16
 import Data.Generics.Labels ()
 import qualified Data.List as List
 import qualified Edify.Compiler.Options as Options
+import qualified Edify.Compiler.Project as Project
 import qualified System.Directory as Directory
 import System.FilePath ((</>))
 import qualified System.FilePath as FilePath
@@ -61,10 +62,15 @@ makeAbsoluteTo context file
 -- be decoded with 'toInputName'.
 --
 -- @since 0.5.0.0
-toOutputName :: Options.OptionsF Identity -> FilePath -> Ext -> FilePath
-toOutputName options file ext =
+toOutputName ::
+  Options.OptionsF Identity ->
+  Project.ProjectF Identity ->
+  FilePath ->
+  Ext ->
+  FilePath
+toOutputName options project file ext =
   let input = options ^. #optionsProjectDirectory
-      output = options ^. #optionsProjectConfig . #projectOutputDirectory
+      output = project ^. #projectOutputDirectory
    in (FilePath.<.> ext) $
         case List.stripPrefix (input <> "/") file of
           Just rel -> output </> rel
@@ -74,10 +80,14 @@ toOutputName options file ext =
 -- input document.  This is the inverse of 'toOutputName'.
 --
 -- @since 0.5.0.0
-toInputName :: Options.Options -> FilePath -> FilePath
-toInputName options file =
+toInputName ::
+  Options.OptionsF Identity ->
+  Project.ProjectF Identity ->
+  FilePath ->
+  FilePath
+toInputName options project file =
   let input = options ^. #optionsProjectDirectory
-      output = options ^. #optionsProjectConfig . #projectOutputDirectory
+      output = project ^. #projectOutputDirectory
    in FilePath.dropExtension $
         case List.stripPrefix (output <> "/") file of
           Nothing -> input </> output -- This should be impossible.

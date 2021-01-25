@@ -27,9 +27,10 @@ import qualified Options.Applicative as Opt
 -- | Options that affect builds.
 --
 -- @since 0.5.0.0
-data Flags (f :: * -> *) = Flags
-  { flagsCompilerOptions :: Options.OptionsF f,
-    flagsCommandSafety :: Shake.CommandSafety
+data Flags (f :: Type -> Type) = Flags
+  { flagsCommandSafety :: Shake.CommandSafety,
+    flagsCompilerOptions :: Options.OptionsF f,
+    flagsProjectOptions :: Project.ProjectF f
   }
 
 -- | Command description and option parser.
@@ -41,8 +42,7 @@ desc = ("Build one or more projects", flags)
     flags :: Opt.Parser (Flags Maybe)
     flags =
       Flags
-        <$> Options.fromCommandLine Project.fromCommandLine
-        <*> Opt.flag
+        <$> Opt.flag
           Shake.RequireCommandFingerprints
           Shake.UnsafeAllowAllCommands
           ( mconcat
@@ -51,14 +51,23 @@ desc = ("Build one or more projects", flags)
                 Opt.hidden
               ]
           )
+        <*> Options.fromCommandLine
+        <*> Project.fromCommandLine
 
 -- | Resolve all options to their final values.
 --
 -- @since 0.5.0.0
-resolve :: MonadIO m => Flags Maybe -> m (Either Options.Error (Flags Identity))
-resolve Flags {..} =
-  Options.resolve flagsCompilerOptions
-    <&> second (`Flags` flagsCommandSafety)
+resolve :: MonadIO m => Flags Maybe -> m (Either Project.Error (Flags Identity))
+resolve Flags {..} = runExceptT $ do
+  compiler <- Options.resolve flagsCompilerOptions
+  project <- Project.resolve flagsProjectOptions
+
+  pure
+    Flags
+      { flagsCommandSafety = flagsCommandSafety,
+        flagsCompilerOptions = compiler,
+        flagsProjectOptions = project
+      }
 
 -- | Execute a build.
 --
@@ -66,7 +75,11 @@ resolve Flags {..} =
 main :: Flags Maybe -> IO ()
 main = resolve >=> go
   where
-    go :: Either Options.Error (Flags Identity) -> IO ()
+    go :: Either Project.Error (Flags Identity) -> IO ()
     go = \case
       Left e -> die (show e)
-      Right Flags {..} -> Shake.main flagsCompilerOptions flagsCommandSafety
+      Right Flags {..} ->
+        Shake.main
+          flagsCompilerOptions
+          flagsProjectOptions
+          flagsCommandSafety

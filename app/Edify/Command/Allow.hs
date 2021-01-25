@@ -12,61 +12,41 @@
 --   contained in the LICENSE file.
 --
 -- License: Apache-2.0
-module Edify.Command.Audit
+module Edify.Command.Allow
   ( Flags,
     desc,
     main,
   )
 where
 
-import qualified Edify.Compiler.Audit as Audit
+import qualified Edify.Compiler.Allow as Allow
 import qualified Edify.Compiler.Options as Options
 import qualified Options.Applicative as Opt
 
--- | Options that affect audits.
+-- | Command line options.
 --
 -- @since 0.5.0.0
 data Flags (f :: Type -> Type) = Flags
-  { flagsOutputMode :: Audit.Mode,
-    flagsCompilerOptions :: Options.OptionsF f,
-    -- FIXME: Should this try to use the input files from the project config?
+  { flagsCompilerOptions :: Options.OptionsF f,
     flagsInputFiles :: NonEmpty FilePath
   }
-  deriving stock (Generic)
 
--- | Command description and option parser.
+-- | Command description.
 --
 -- @since 0.5.0.0
 desc :: (String, Opt.Parser (Flags Maybe))
-desc = ("Analyze and report any file security issues", flags)
+desc = ("Authorize the use of commands in the specific files", flags)
   where
     flags :: Opt.Parser (Flags Maybe)
     flags =
       Flags
-        <$> asum
-          [ Opt.flag'
-              Audit.JsonAuditMode
-              ( mconcat
-                  [ Opt.long "json",
-                    Opt.help "Output a complete, machine-readable JSON doc"
-                  ]
-              ),
-            Opt.flag
-              Audit.BlockedCommandAuditMode
-              Audit.FullAuditMode
-              ( mconcat
-                  [ Opt.long "full",
-                    Opt.help "Produce a complete audit, not just exec info"
-                  ]
-              )
-          ]
-        <*> Options.fromCommandLine
+        <$> Options.fromCommandLine
         <*> ( fromList
                 <$> some
                   ( Opt.strArgument $
                       mconcat
                         [ Opt.metavar "FILE [FILE ...]",
-                          Opt.help "Files to audit"
+                          Opt.help "Files to authorize"
                         ]
                   )
             )
@@ -80,19 +60,15 @@ resolve Flags {..} = do
   pure
     Flags
       { flagsCompilerOptions = compiler,
-        flagsOutputMode = flagsOutputMode,
         flagsInputFiles = flagsInputFiles
       }
 
--- | Execute a build.
+-- | Main entry point.
 --
 -- @since 0.5.0.0
 main :: Flags Maybe -> IO ()
-main = resolve >=> go
-  where
-    go :: Flags Identity -> IO ()
-    go Flags {..} =
-      Audit.main
-        flagsOutputMode
-        flagsCompilerOptions
-        flagsInputFiles
+main =
+  resolve >=> \Flags {..} ->
+    Allow.main
+      flagsCompilerOptions
+      flagsInputFiles

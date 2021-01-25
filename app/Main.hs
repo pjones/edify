@@ -17,6 +17,7 @@ module Main
   )
 where
 
+import qualified Edify.Command.Allow as Allow
 import qualified Edify.Command.Audit as Audit
 import qualified Edify.Command.Build as Build
 import qualified Options.Applicative as Options
@@ -28,6 +29,7 @@ import qualified Options.Applicative as Options
 data Command
   = CmdBuild (Build.Flags Maybe)
   | CmdAudit (Audit.Flags Maybe)
+  | CmdAllow (Allow.Flags Maybe)
 
 -- | Command line parser.
 commands :: Options.Parser Command
@@ -35,7 +37,8 @@ commands =
   Options.hsubparser
     ( mconcat
         [ mkcmd "build" CmdBuild Build.desc,
-          mkcmd "audit" CmdAudit Audit.desc
+          mkcmd "audit" CmdAudit Audit.desc,
+          mkcmd "allow" CmdAllow Allow.desc
         ]
     )
   where
@@ -61,5 +64,6 @@ main =
   Options.execParser opts >>= \case
     CmdBuild flags -> Build.main flags
     CmdAudit flags -> Audit.main flags
+    CmdAllow flags -> Allow.main flags
   where
     opts = Options.info (Options.helper <*> commands) mempty

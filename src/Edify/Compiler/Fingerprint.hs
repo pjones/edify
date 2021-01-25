@@ -19,15 +19,19 @@ module Edify.Compiler.Fingerprint
     Self,
     Commands,
     Cache,
+    cache,
     read,
+    write,
   )
 where
 
 import Control.Lens (at, (.~), (^.))
 import qualified Crypto.Hash.SHA256 as SHA256
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Encode.Pretty as Pretty
 import qualified Data.ByteString.Base16 as Base16
 import Data.Generics.Labels ()
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Set as Set
 import Edify.JSON
 import qualified System.Directory as Directory
@@ -114,6 +118,30 @@ newtype Cache a = Cache
   deriving stock (Generic, Show)
   deriving newtype (Semigroup, Monoid)
 
+-- | Build a cache for the given file and entry.
+--
+-- @since 0.5.0.0
+cache ::
+  Semigroup a =>
+  Fingerprinted a =>
+  FilePath ->
+  Subject a ->
+  Cache a ->
+  Cache a
+cache file subject (Cache cs) =
+  let key = cacheKey file
+      entry = Fingerprint file (generate subject)
+   in Cache $
+        HashMap.insertWith
+          ( \x y ->
+              Fingerprint
+                file
+                (on (<>) fingerprintContent x y)
+          )
+          key
+          entry
+          cs
+
 -- | Read the fingerprint for a file from the cache or from the
 -- fingerprint directory.
 --
@@ -133,23 +161,42 @@ read ::
   -- fingerprint exists for the given file.
   m (Maybe (Fingerprint a), Cache a)
 read (Cache cache) dir file =
-  case cache ^. at key of
-    Just fp ->
-      pure (Just fp, Cache cache)
-    Nothing -> do
-      fp <- load
-      pure (fp, Cache (cache & at key .~ fp))
+  let key = cacheKey file
+   in case cache ^. at key of
+        Just fp ->
+          pure (Just fp, Cache cache)
+        Nothing -> do
+          fp <- load key
+          pure (fp, Cache (cache & at key .~ fp))
   where
-    load :: m (Maybe (Fingerprint a))
-    load = runMaybeT $ do
-      guardM (liftIO $ Directory.doesFileExist path)
-      MaybeT (readFileLBS path <&> Aeson.decode)
+    load :: ByteString -> m (Maybe (Fingerprint a))
+    load key = runMaybeT $ do
+      let file = cachePath dir key
+      guardM (liftIO $ Directory.doesFileExist file)
+      MaybeT (readFileLBS file <&> Aeson.decode)
 
-    path :: FilePath
-    path = dir </> decodeUtf8 key
+-- | Write a fingerprint cache to disk.
+--
+-- @since 0.5.0.0
+write ::
+  MonadIO m =>
+  ToJSON a =>
+  FilePath ->
+  Cache a ->
+  m ()
+write dir (Cache cache) =
+  for_ (HashMap.toList cache) $ \(key, entry) -> do
+    let file = cachePath dir key
+    liftIO (Directory.createDirectoryIfMissing True dir)
+    writeFileLBS file (Pretty.encodePretty entry)
 
-    key :: ByteString
-    key =
-      encodeUtf8 file
-        & SHA256.hash
-        & Base16.encode
+-- | Generate a cache key.
+cacheKey :: FilePath -> ByteString
+cacheKey =
+  encodeUtf8
+    >>> SHA256.hash
+    >>> Base16.encode
+
+-- | Generate a cache file name.
+cachePath :: FilePath -> ByteString -> FilePath
+cachePath dir key = dir </> decodeUtf8 key

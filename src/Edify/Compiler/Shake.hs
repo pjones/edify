@@ -34,6 +34,7 @@ import qualified Edify.Compiler.FilePath as FilePath
 import qualified Edify.Compiler.Lang as Lang
 import qualified Edify.Compiler.Markdown as Markdown
 import qualified Edify.Compiler.Options as Options
+import qualified Edify.Compiler.Project as Project
 import qualified Edify.Compiler.Stack as Stack
 import qualified Edify.Input as Input
 import qualified Edify.Markdown.AST as AST
@@ -49,18 +50,19 @@ data CommandSafety
 --
 -- @since 0.5.0.0
 eval ::
-  Options.Options ->
+  Options.OptionsF Identity ->
+  Project.ProjectF Identity ->
   CommandSafety ->
   Lang.Compiler a ->
   Eval Shake.Action a
-eval options cmdmode = Free.iterM go
+eval options project cmdmode = Free.iterM go
   where
     go :: Lang.CompilerF (Eval Shake.Action a) -> Eval Shake.Action a
     go = \case
-      Lang.Options k ->
-        k options
+      Lang.Tabstop k ->
+        k (project ^. #projectTabstop)
       Lang.ReadInput input subexp k -> do
-        Eval.withInput input abort (const (eval options cmdmode . subexp)) >>= k
+        Eval.withInput input abort (const (eval options project cmdmode . subexp)) >>= k
       Lang.Exec (pending, input) k ->
         verifyCommandWithBypass pending $ \approved -> do
           dir <- gets Eval.stack >>= Stack.directory
@@ -108,7 +110,9 @@ eval options cmdmode = Free.iterM go
 -- @since 0.5.0.0
 fileExtensionRule ::
   -- | Compiler options.
-  Options.Options ->
+  Options.OptionsF Identity ->
+  -- | The project that is currently active.
+  Project.ProjectF Identity ->
   -- | A pair of file extensions.  The first is for the input file and
   -- the second is for the output file.
   (String, String) ->
@@ -117,25 +121,29 @@ fileExtensionRule ::
   (FilePath -> FilePath -> Shake.Action ()) ->
   -- | The generated Shake rules.
   Shake.Rules ()
-fileExtensionRule options (extIn, extOut) f =
-  let dir = options ^. #optionsProjectConfig . #projectOutputDirectory
+fileExtensionRule options project (extIn, extOut) f =
+  let dir = project ^. #projectOutputDirectory
       filePattern =
         dir <> "//*"
           <> extIn -- FIXME: Ensure these are formatted properly.
           <> extOut -- FIXME: probably use a newtype for extensions.
    in filePattern Shake.%> \output -> do
-        let input = FilePath.toInputName options output
+        let input = FilePath.toInputName options project output
         f input output
 
 -- | Shake rule for processing and removing Edify features from a
 -- Markdown document, producing the target Markdown.
 --
 -- @since 0.5.0.0
-markdownRule :: Options.Options -> CommandSafety -> Shake.Rules ()
-markdownRule options cmdmode =
-  fileExtensionRule options (".md", ".edify") $ \input output -> do
+markdownRule ::
+  Options.OptionsF Identity ->
+  Project.ProjectF Identity ->
+  CommandSafety ->
+  Shake.Rules ()
+markdownRule options project cmdmode =
+  fileExtensionRule options project (".md", ".edify") $ \input output -> do
     markdown <-
-      eval options cmdmode (Markdown.compile (Input.FromFile input))
+      eval options project cmdmode (Markdown.compile (Input.FromFile input))
         & evaluatingStateT Eval.emptyRuntime
     writeFileLText
       output
@@ -147,23 +155,31 @@ markdownRule options cmdmode =
 -- | All Shake rules for building an entire project.
 --
 -- @since 0.5.0.0
-rules :: Options.Options -> CommandSafety -> Shake.Rules ()
-rules options cmdmode = do
-  markdownRule options cmdmode
+rules ::
+  Options.OptionsF Identity ->
+  Project.ProjectF Identity ->
+  CommandSafety ->
+  Shake.Rules ()
+rules options project cmdmode = do
+  markdownRule options project cmdmode
 
-  forM_ (options ^. #optionsProjectConfig . #projectInputFiles) $
+  forM_ (project ^. #projectInputFiles) $
     \file -> do
-      let md = FilePath.toOutputName options file "edify"
+      let md = FilePath.toOutputName options project file "edify"
       Shake.want [md]
 
 -- | Build an Edify project.
 --
 -- @since 0.5.0.0
-main :: Options.Options -> CommandSafety -> IO ()
-main options cmdmode = do
+main ::
+  Options.OptionsF Identity ->
+  Project.ProjectF Identity ->
+  CommandSafety ->
+  IO ()
+main options project cmdmode = do
   (_, after) <- Shake.shakeWithDatabase
     shakeOptions
-    (rules options cmdmode)
+    (rules options project cmdmode)
     $ \db -> do
       Shake.shakeOneShotDatabase db
       Shake.shakeRunDatabase db []
@@ -172,7 +188,5 @@ main options cmdmode = do
     shakeOptions :: Shake.ShakeOptions
     shakeOptions =
       Shake.shakeOptions
-        { Shake.shakeFiles =
-            options
-              ^. #optionsProjectConfig . #projectOutputDirectory
+        { Shake.shakeFiles = project ^. #projectOutputDirectory
         }

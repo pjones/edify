@@ -21,7 +21,7 @@ module Edify.Compiler.Lang
   ( Compiler,
     Command,
     StandardInput,
-    options,
+    tabstop,
     readInput,
     exec,
     abort,
@@ -35,8 +35,8 @@ where
 import Control.Monad.Free.Church (F, MonadFree, liftF)
 import Control.Monad.Free.TH (makeFree)
 import Edify.Compiler.Error (Error (..))
-import qualified Edify.Compiler.Options as Options
 import Edify.Input (Input)
+import qualified Edify.Text.Indent as Indent
 
 -- | Shell commands.
 --
@@ -52,8 +52,8 @@ type StandardInput = Text
 --
 -- @since 0.5.0.0
 data CompilerF k where
-  -- | Access the options provided to the compiler.
-  Options :: (Options.Options -> k) -> CompilerF k
+  -- | Access the 'Indent.Tabstop' that is currently in effect.
+  Tabstop :: (Indent.Tabstop -> k) -> CompilerF k
   -- | Load text from the given input source.
   ReadInput :: forall a k. Input -> (LText -> Compiler a) -> (a -> k) -> CompilerF k
   -- | Execute a shell command feeding it some input.
@@ -63,7 +63,7 @@ data CompilerF k where
 
 instance Functor CompilerF where
   fmap f = \case
-    Options g -> Options (f . g)
+    Tabstop g -> Tabstop (f . g)
     ReadInput x y g -> ReadInput x y (f . g)
     Exec x g -> Exec x (f . g)
     Abort e -> Abort e

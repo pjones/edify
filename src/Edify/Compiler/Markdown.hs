@@ -88,7 +88,7 @@ compile input =
     rewrite :: AST.Block -> Compiler [AST.Block]
     rewrite block = do
       let rw = \r -> (<>) <$> rewriteInsert r <*> rewriteExec r
-      ts <- C.options <&> (^. #optionsProjectConfig . #projectTabstop)
+      ts <- C.tabstop
       AST.fencesRewrite ts rw block
         >>= either
           (C.abort . C.DivRewriteError input)

@@ -39,6 +39,7 @@ import qualified Edify.Compiler.Markdown as Markdown
 import qualified Edify.Compiler.Options as Options
 import qualified Edify.Input as Input
 import Edify.JSON
+import qualified Edify.Text.Indent as Indent
 import qualified Prettyprinter.Render.Terminal as PP
 import qualified System.FilePath as FilePath
 
@@ -108,8 +109,8 @@ eval options = Free.iterM go . fmap (,mempty)
   where
     go :: MonadIO m => Lang.CompilerF (AuditT m (a, Audit)) -> AuditT m (a, Audit)
     go = \case
-      Lang.Options k ->
-        k options
+      Lang.Tabstop k ->
+        k Indent.defaultTabstop
       Lang.ReadInput input subexp k -> do
         (x, a) <- Eval.withInput input abort $ \path content ->
           eval options (subexp content)
@@ -133,15 +134,25 @@ eval options = Free.iterM go . fmap (,mempty)
 --
 -- @since 0.5.0.0
 audit ::
+  forall m.
   MonadIO m =>
   Options.Options ->
-  Lang.Compiler a ->
+  NonEmpty FilePath ->
   m (Either (Eval.Runtime, Error.Error) Audit)
-audit options =
-  eval options
-    >>> evaluatingStateT Eval.emptyRuntime
-    >>> runExceptT
-    >>> fmap (second snd)
+audit options files =
+  runExceptT $
+    foldrM
+      (\x y -> (y <>) <$> go (Markdown.compile $ Input.FromFile x))
+      mempty
+      files
+  where
+    go :: Lang.Compiler a -> ExceptT (Eval.Runtime, Error.Error) m Audit
+    go =
+      eval options
+        >>> evaluatingStateT Eval.emptyRuntime
+        >>> runExceptT
+        >>> fmap (second snd)
+        >>> ExceptT
 
 -- | Product a report that only includes commands that are blocked
 -- from running.
@@ -232,16 +243,13 @@ ppStatus = \case
 -- | Run a report with the given options.
 --
 -- @since 0.5.0.0
-main :: Mode -> Options.Options -> IO ()
-main mode options = do
-  result <-
-    runExceptT $
-      foldrM
-        (\x y -> (y <>) <$> go x)
-        mempty
-        (options ^. #optionsProjectConfig . #projectInputFiles)
-
-  case result of
+main ::
+  Mode ->
+  Options.Options ->
+  NonEmpty FilePath ->
+  IO ()
+main mode options files =
+  audit options files >>= \case
     Left (r, e) ->
       -- FIXME: Need proper error reporting.
       print r >> print e
@@ -257,8 +265,5 @@ main mode options = do
               printReport r
               exitFailure
   where
-    go :: FilePath -> ExceptT (Eval.Runtime, Error.Error) IO Audit
-    go = ExceptT . audit options . Markdown.compile . Input.FromFile
-
     printReport :: PP.Doc PP.AnsiStyle -> IO ()
     printReport = PP.putDoc

@@ -72,6 +72,7 @@ common extensions
 common dependencies
   build-depends:
     , aeson                        ^>=1.4
+    , aeson-pretty                 ^>=0.8
     , attoparsec                   ^>=0.13
     , base                         >=4.12 && <5.0
     , base16-bytestring            ^>=0.1
@@ -111,6 +112,7 @@ library
   import:          options, extensions, dependencies
   hs-source-dirs:  src
   exposed-modules:
+    Edify.Compiler.Allow
     Edify.Compiler.Audit
     Edify.Compiler.Cycle
     Edify.Compiler.Error
@@ -146,6 +148,7 @@ executable edify
   hs-source-dirs: app
   main-is:        Main.hs
   other-modules:
+    Edify.Command.Allow
     Edify.Command.Audit
     Edify.Command.Build
 
