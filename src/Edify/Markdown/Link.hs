@@ -30,6 +30,7 @@ where
 
 import qualified Data.Attoparsec.Text.Lazy as Atto
 import Data.Char (isSpace)
+import qualified Data.Char as Char
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy.Builder as LTB
 import Edify.JSON
@@ -182,9 +183,18 @@ linkRefP = do
 
 -- | Automatic links (Links between angle brackets).
 --
+-- Care is taken to ensure that what's between the brackets looks like
+-- a URL, with one exception, @mailto:@ URLs are ignored.
+--
 -- @since 0.5.0.0
 linkAutoP :: Atto.Parser (Link r)
-linkAutoP = AutoLink <$> matchingBracketP ('<', '>')
+linkAutoP = do
+  _ <- Atto.char '<'
+  proto <- Atto.many1 (Atto.satisfy Char.isAlphaNum)
+  _ <- Atto.string "://"
+  rest <- Atto.many1 (Atto.satisfy (/= '>'))
+  _ <- Atto.char '>'
+  pure (AutoLink (toText proto <> "://" <> toText rest))
 
 -- | Link definition parser.
 --

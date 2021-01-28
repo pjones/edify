@@ -54,11 +54,8 @@ linkTest = do
       ( "[II[foo]][baz]",
         Link "II[foo]" (Reference (Just "baz") (RefSep Nothing))
       ),
-      ( "<bar>",
-        AutoLink "bar"
-      ),
-      ( "<b<a>r>",
-        AutoLink "b<a>r"
+      ( "<http://bar>",
+        AutoLink "http://bar"
       )
     ]
 

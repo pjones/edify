@@ -57,6 +57,7 @@ atxHeadingP :: Atto.Parser Heading
 atxHeadingP = (Atto.<?> "ATX-style heading") $ do
   _ <- nonindentSpaces
   level <- Atto.many1 (Atto.char '#' $> Sum 1) <&> (fold >>> getSum)
+  _ <- Atto.satisfy Atto.isHorizontalSpace
   Atto.skipWhile Atto.isHorizontalSpace
   guard (level <= 6)
   let close =

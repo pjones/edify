@@ -133,6 +133,7 @@ library
     Edify.JSON
     Edify.Markdown.AST
     Edify.Markdown.Attributes
+    Edify.Markdown.Comment
     Edify.Markdown.Common
     Edify.Markdown.Fence
     Edify.Markdown.Heading

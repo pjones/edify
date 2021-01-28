@@ -33,6 +33,7 @@ import Data.Generics.Labels ()
 import qualified Data.Text.Lazy.Builder as LTB
 import Edify.JSON
 import Edify.Markdown.Attributes (Attributes)
+import qualified Edify.Markdown.Comment as Comment
 import Edify.Markdown.Common (endOfLineP, wholelineP)
 import Edify.Markdown.Fence (Fence)
 import qualified Edify.Markdown.Fence as Fence
@@ -72,6 +73,7 @@ data Block
   = HeadingBlock Heading
   | FenceBlock (Fence [Inline])
   | LinkDefBlock Link.Definition
+  | CommentBlock Comment.Comment
   | IncludeBlock Include
   | ParaBlock [Inline]
   | BlankLine Text
@@ -107,6 +109,7 @@ blockP =
             headingP,
             fenceP,
             linkDefP,
+            commentP,
             includeP,
             paraP
           ]
@@ -126,6 +129,9 @@ blockP =
 
     linkDefP :: Atto.Parser Block
     linkDefP = LinkDefBlock <$> Link.linkDefinitionP
+
+    commentP :: Atto.Parser Block
+    commentP = CommentBlock <$> Comment.commentP
 
     includeP :: Atto.Parser Block
     includeP = IncludeBlock <$> Include.includeP
@@ -217,6 +223,7 @@ markdownT = unAST >>> foldMap go
       HeadingBlock h -> Heading.headingT h
       FenceBlock f -> Fence.fenceT inlineT f
       LinkDefBlock def -> Link.linkDefinitionT def
+      CommentBlock cmt -> Comment.commentT cmt
       IncludeBlock inc -> Include.includeT inc
       ParaBlock ins -> inlineT ins
       BlankLine t -> LTB.fromText t
