@@ -22,6 +22,7 @@ module Edify.Compiler.Lang
     Command,
     StandardInput,
     tabstop,
+    asset,
     readInput,
     exec,
     abort,
@@ -54,6 +55,10 @@ type StandardInput = Text
 data CompilerF k where
   -- | Access the 'Indent.Tabstop' that is currently in effect.
   Tabstop :: (Indent.Tabstop -> k) -> CompilerF k
+  -- | Resolve the path to an asset.  If the asset needs to be
+  -- compiled the path to the final build result is returned.
+  -- Otherwise the absolute path to the source asset is returned.
+  Asset :: FilePath -> (FilePath -> k) -> CompilerF k
   -- | Load text from the given input source.
   ReadInput :: forall a k. Input -> (LText -> Compiler a) -> (a -> k) -> CompilerF k
   -- | Execute a shell command feeding it some input.
@@ -63,6 +68,7 @@ data CompilerF k where
 
 instance Functor CompilerF where
   fmap f = \case
+    Asset file g -> Asset file (f . g)
     Tabstop g -> Tabstop (f . g)
     ReadInput x y g -> ReadInput x y (f . g)
     Exec x g -> Exec x (f . g)

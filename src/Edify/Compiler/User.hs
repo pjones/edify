@@ -26,32 +26,32 @@ import System.FilePath ((</>))
 -- | User configuration.
 --
 -- @since 0.5.0.0
-data UserF (f :: Type -> Type) = User
+data UserF (f :: Readiness) = User
   { -- | Directory where command fingerprints are stored.
     userCommandAllowDir :: Default f FilePath,
     -- | Default project configuration.
-    userProjectConfig :: Project.ProjectF Maybe
+    userProjectConfig :: Project.ProjectF Parsed
   }
   deriving stock (Generic)
 
-deriving via (GenericJSON (UserF Maybe)) instance ToJSON (UserF Maybe)
+deriving via (GenericJSON (UserF Parsed)) instance ToJSON (UserF Parsed)
 
-deriving via (GenericJSON (UserF Maybe)) instance FromJSON (UserF Maybe)
+deriving via (GenericJSON (UserF Parsed)) instance FromJSON (UserF Parsed)
 
-instance Semigroup (UserF Maybe) where
+instance Semigroup (UserF Parsed) where
   (<>) x y =
     User
       { userCommandAllowDir = userCommandAllowDir x <|> userCommandAllowDir y,
         userProjectConfig = userProjectConfig x <> userProjectConfig y
       }
 
-instance Monoid (UserF Maybe) where
+instance Monoid (UserF Parsed) where
   mempty = User mempty mempty
 
--- | Resolve a 'UserF Maybe' value to a final 'UserF Identity' value.
+-- | Resolve a 'UserF Parsed' value to a final 'UserF Identity' value.
 --
 -- @since 0.5.0.0
-resolve :: forall m. MonadIO m => UserF Maybe -> m (UserF Identity)
+resolve :: forall m. MonadIO m => UserF Parsed -> m (UserF Resolved)
 resolve User {..} =
   User
     <$> maybe defaultAllowDir pure userCommandAllowDir

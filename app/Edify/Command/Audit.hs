@@ -21,12 +21,13 @@ where
 
 import qualified Edify.Compiler.Audit as Audit
 import qualified Edify.Compiler.Options as Options
+import Edify.JSON
 import qualified Options.Applicative as Opt
 
 -- | Options that affect audits.
 --
 -- @since 0.5.0.0
-data Flags (f :: Type -> Type) = Flags
+data Flags (f :: Readiness) = Flags
   { flagsOutputMode :: Audit.Mode,
     flagsCompilerOptions :: Options.OptionsF f,
     -- FIXME: Should this try to use the input files from the project config?
@@ -37,10 +38,10 @@ data Flags (f :: Type -> Type) = Flags
 -- | Command description and option parser.
 --
 -- @since 0.5.0.0
-desc :: (String, Opt.Parser (Flags Maybe))
+desc :: (String, Opt.Parser (Flags Parsed))
 desc = ("Analyze and report any file security issues", flags)
   where
-    flags :: Opt.Parser (Flags Maybe)
+    flags :: Opt.Parser (Flags Parsed)
     flags =
       Flags
         <$> asum
@@ -74,7 +75,7 @@ desc = ("Analyze and report any file security issues", flags)
 -- | Resolve all options to their final values.
 --
 -- @since 0.5.0.0
-resolve :: MonadIO m => Flags Maybe -> m (Flags Identity)
+resolve :: MonadIO m => Flags Parsed -> m (Flags Resolved)
 resolve Flags {..} = do
   compiler <- Options.resolve flagsCompilerOptions
   pure
@@ -87,10 +88,10 @@ resolve Flags {..} = do
 -- | Execute a build.
 --
 -- @since 0.5.0.0
-main :: Flags Maybe -> IO ()
+main :: Flags Parsed -> IO ()
 main = resolve >=> go
   where
-    go :: Flags Identity -> IO ()
+    go :: Flags Resolved -> IO ()
     go Flags {..} =
       Audit.main
         flagsOutputMode

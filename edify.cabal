@@ -43,6 +43,7 @@ common options
 --------------------------------------------------------------------------------
 common extensions
   default-extensions:
+    DataKinds
     DeriveFoldable
     DeriveFunctor
     DeriveGeneric
@@ -113,6 +114,7 @@ library
   hs-source-dirs:  src
   exposed-modules:
     Edify.Compiler.Allow
+    Edify.Compiler.Asset
     Edify.Compiler.Audit
     Edify.Compiler.Cycle
     Edify.Compiler.Error
@@ -142,6 +144,7 @@ library
     Edify.Markdown.Link
     Edify.Text.Indent
     Edify.Text.Narrow
+    Edify.Text.Placeholders
 
 ------------------------------------------------------------------------------
 executable edify

@@ -20,6 +20,7 @@ where
 
 import Control.Lens ((.~), (?~), (^.), _1)
 import qualified Data.Attoparsec.Text.Lazy as Atto
+import qualified Data.Text as Text
 import qualified Data.Text.Lazy as LText
 import Edify.Compiler.Lang (Compiler)
 import qualified Edify.Compiler.Lang as C
@@ -92,7 +93,13 @@ compile input =
       AST.fencesRewrite ts rw block
         >>= either
           (C.abort . C.DivRewriteError input)
-          (pure . one)
+          (AST.urls rewriteLink)
+
+-- | Rewrite link URLs that point to local assets.
+rewriteLink :: Text -> Compiler Text
+rewriteLink url
+  | "://" `Text.isInfixOf` url = pure url
+  | otherwise = C.asset (toString url) <&> toText
 
 -- | Generate a 'Rewrite' from a request to insert a (possibly
 -- narrowed) source file.

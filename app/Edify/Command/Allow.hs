@@ -21,12 +21,13 @@ where
 
 import qualified Edify.Compiler.Allow as Allow
 import qualified Edify.Compiler.Options as Options
+import Edify.JSON
 import qualified Options.Applicative as Opt
 
 -- | Command line options.
 --
 -- @since 0.5.0.0
-data Flags (f :: Type -> Type) = Flags
+data Flags (f :: Readiness) = Flags
   { flagsCompilerOptions :: Options.OptionsF f,
     flagsInputFiles :: NonEmpty FilePath
   }
@@ -34,10 +35,10 @@ data Flags (f :: Type -> Type) = Flags
 -- | Command description.
 --
 -- @since 0.5.0.0
-desc :: (String, Opt.Parser (Flags Maybe))
+desc :: (String, Opt.Parser (Flags Parsed))
 desc = ("Authorize the use of commands in the specific files", flags)
   where
-    flags :: Opt.Parser (Flags Maybe)
+    flags :: Opt.Parser (Flags Parsed)
     flags =
       Flags
         <$> Options.fromCommandLine
@@ -54,7 +55,7 @@ desc = ("Authorize the use of commands in the specific files", flags)
 -- | Resolve all options to their final values.
 --
 -- @since 0.5.0.0
-resolve :: MonadIO m => Flags Maybe -> m (Flags Identity)
+resolve :: MonadIO m => Flags Parsed -> m (Flags Resolved)
 resolve Flags {..} = do
   compiler <- Options.resolve flagsCompilerOptions
   pure
@@ -66,7 +67,7 @@ resolve Flags {..} = do
 -- | Main entry point.
 --
 -- @since 0.5.0.0
-main :: Flags Maybe -> IO ()
+main :: Flags Parsed -> IO ()
 main =
   resolve >=> \Flags {..} ->
     Allow.main

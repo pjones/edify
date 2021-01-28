@@ -60,6 +60,10 @@ data AuditF r
     AuditEnd
   | -- | Used to connect two audits together.
     AuditItems (NonEmpty r)
+  | -- | An asset was referenced in the Markdown.
+    AuditAsset
+      { auditAssetPath :: FilePath
+      }
   | -- | File opened for reading.
     AuditFile
       { auditFilePath :: FilePath,
@@ -111,6 +115,9 @@ eval options = Free.iterM go . fmap (,mempty)
     go = \case
       Lang.Tabstop k ->
         k Indent.defaultTabstop
+      Lang.Asset file k -> do
+        abs <- Eval.depends (Input.FromFile file) abort (maybe (pure file) pure)
+        k abs <&> second (embed (AuditAsset abs) <>)
       Lang.ReadInput input subexp k -> do
         (x, a) <- Eval.withInput input abort $ \path content ->
           eval options (subexp content)
@@ -177,6 +184,7 @@ blockedReport options =
     blocked = cata $ \case
       AuditEnd -> mempty
       AuditItems items -> fold items
+      AuditAsset _ -> mempty
       AuditFile _ children -> children
       AuditCommand path cmd status ->
         case status of
@@ -208,6 +216,8 @@ fullReport options = cata go >>> (<> PP.line)
     go = \case
       AuditEnd -> mempty
       AuditItems docs -> fold docs
+      AuditAsset path ->
+        PP.line <> PP.sep ["Asset" <> PP.colon, ppFilePath options path]
       AuditFile path doc ->
         let entry = PP.sep ["Read" <> PP.colon, ppFilePath options path]
          in PP.line <> entry <> PP.nest 2 doc

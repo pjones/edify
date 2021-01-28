@@ -20,6 +20,7 @@ where
 import qualified Edify.Command.Allow as Allow
 import qualified Edify.Command.Audit as Audit
 import qualified Edify.Command.Build as Build
+import Edify.JSON
 import qualified Options.Applicative as Options
 
 -- import Data.Version (showVersion)
@@ -27,9 +28,9 @@ import qualified Options.Applicative as Options
 
 -- | Type for the command line parser.
 data Command
-  = CmdBuild (Build.Flags Maybe)
-  | CmdAudit (Audit.Flags Maybe)
-  | CmdAllow (Allow.Flags Maybe)
+  = CmdBuild (Build.Flags Parsed)
+  | CmdAudit (Audit.Flags Parsed)
+  | CmdAllow (Allow.Flags Parsed)
 
 -- | Command line parser.
 commands :: Options.Parser Command

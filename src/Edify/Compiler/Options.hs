@@ -32,7 +32,7 @@ import qualified System.Directory as Directory
 -- | Options that control how a project will be processed.
 --
 -- @since 0.5.0.0
-data OptionsF (f :: Type -> Type) = Options
+data OptionsF (f :: Readiness) = Options
   { -- | The top-level project directory.
     optionsProjectDirectory :: Default f FilePath,
     -- | Configuration stored in a user's file system.
@@ -40,7 +40,7 @@ data OptionsF (f :: Type -> Type) = Options
   }
   deriving stock (Generic)
 
-instance Semigroup (OptionsF Maybe) where
+instance Semigroup (OptionsF Parsed) where
   (<>) x y =
     Options
       { optionsProjectDirectory =
@@ -51,7 +51,7 @@ instance Semigroup (OptionsF Maybe) where
             <> optionsUserConfig y
       }
 
-instance Monoid (OptionsF Maybe) where
+instance Monoid (OptionsF Parsed) where
   mempty =
     Options
       { optionsProjectDirectory = Nothing,
@@ -61,18 +61,18 @@ instance Monoid (OptionsF Maybe) where
 -- | The 'OptionsF' type fully resolved.
 --
 -- @since 0.5.0.0
-type Options = OptionsF Identity
+type Options = OptionsF Resolved
 
-deriving via (GenericJSON (OptionsF Maybe)) instance ToJSON (OptionsF Maybe)
+deriving via (GenericJSON (OptionsF Parsed)) instance ToJSON (OptionsF Parsed)
 
-deriving via (GenericJSON (OptionsF Maybe)) instance FromJSON (OptionsF Maybe)
+deriving via (GenericJSON (OptionsF Parsed)) instance FromJSON (OptionsF Parsed)
 
 -- | Command line parser.
 --
 -- @since 0.5.0.0
 fromCommandLine ::
   -- | Complete option parser.
-  O.Parser (OptionsF Maybe)
+  O.Parser (OptionsF Parsed)
 fromCommandLine =
   Options
     <$> optional
@@ -92,7 +92,7 @@ fromCommandLine =
 resolve ::
   forall m.
   MonadIO m =>
-  OptionsF Maybe ->
+  OptionsF Parsed ->
   m Options
 resolve Options {..} = do
   top <- locateTopLevelDir

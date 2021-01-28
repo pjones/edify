@@ -14,25 +14,72 @@
 -- License: Apache-2.0
 module Edify.Compiler.FilePath
   ( makeAbsoluteTo,
-    toOutputName,
-    toInputName,
+
+    -- * Mapping Output Files to Input Files
+    InputExt (..),
+    toOutputPath,
+    toInputPath,
+    toInputPathViaInputExt,
+
+    -- * File Extensions
+    Ext (..),
+    fromExt,
+    takeExtension,
+    addExt,
+    replaceExt,
+
+    -- * Re-exports
+    (</>),
+    takeDirectory,
+    takeFileName,
+    dropExtension,
   )
 where
 
-import Control.Lens ((^.))
 import qualified Data.ByteString.Base16 as Base16
 import Data.Generics.Labels ()
 import qualified Data.List as List
-import qualified Edify.Compiler.Options as Options
-import qualified Edify.Compiler.Project as Project
 import qualified System.Directory as Directory
-import System.FilePath ((</>))
+import System.FilePath (dropExtension, takeDirectory, takeFileName, (</>))
 import qualified System.FilePath as FilePath
 
 -- | File extension.
 --
 -- @since 0.5.0.0
-type Ext = FilePath
+newtype Ext = Ext Text
+  deriving newtype (Eq, Hashable)
+
+instance Semigroup Ext where
+  (<>) (Ext x) (Ext y) = Ext (x <> "." <> y)
+
+-- | Convert 'Ext' to the type of string used by the @filepath@ package.
+--
+-- @since 0.5.0.0
+fromExt :: Ext -> String
+fromExt (Ext ext) = "." <> toString ext
+
+-- | Return the extension for the given file.  The extension will not
+-- contain the dot prefix.
+--
+-- @since 0.5.0.0
+takeExtension :: FilePath -> Ext
+takeExtension =
+  FilePath.takeExtension
+    >>> drop 1
+    >>> toText
+    >>> Ext
+
+-- | Append a file extension.
+--
+-- @since 0.5.0.0
+addExt :: FilePath -> Ext -> FilePath
+addExt file = (file FilePath.<.>) . fromExt
+
+-- | Replace the file extension on a file.
+--
+-- @since 0.5.0.0
+replaceExt :: FilePath -> Ext -> FilePath
+replaceExt file = (file FilePath.-<.>) . fromExt
 
 -- | Make a 'FilePath' absolute when it is relative to another
 -- 'FilePath'.
@@ -56,44 +103,81 @@ makeAbsoluteTo context file
       & Directory.canonicalizePath
       & liftIO
 
--- | Translate a file name from a source document to a generated
--- output document.  If the source document is outside the project
--- directory this function will generate a encoded file name that can
--- be decoded with 'toInputName'.
+-- | Re-parent a file path so it under the output directory.
 --
 -- @since 0.5.0.0
-toOutputName ::
-  Options.OptionsF Identity ->
-  Project.ProjectF Identity ->
+toOutputPath ::
+  -- | Input directory.
   FilePath ->
-  Ext ->
+  -- | Output directory.
+  FilePath ->
+  -- | File name to translate.
+  FilePath ->
+  -- | A file in the output directory.
   FilePath
-toOutputName options project file ext =
-  let input = options ^. #optionsProjectDirectory
-      output = project ^. #projectOutputDirectory
-   in (FilePath.<.> ext) $
-        case List.stripPrefix (input <> "/") file of
-          Just rel -> output </> rel
-          Nothing -> output </> encodePathName file
+toOutputPath input output file =
+  case List.stripPrefix (input <> "/") file of
+    Just rel -> output </> rel
+    Nothing -> output </> encodePathName file
 
--- | Translate the name of an output document back to the name of the
--- input document.  This is the inverse of 'toOutputName'.
+-- | Re-parent a file path so it is under the input directory.
 --
 -- @since 0.5.0.0
-toInputName ::
-  Options.OptionsF Identity ->
-  Project.ProjectF Identity ->
+toInputPath ::
+  -- | Input directory.
   FilePath ->
+  -- | Output directory.
+  FilePath ->
+  -- | The File path to translate.
+  FilePath ->
+  -- | A file in the input directory.
   FilePath
-toInputName options project file =
-  let input = options ^. #optionsProjectDirectory
-      output = project ^. #projectOutputDirectory
-   in FilePath.dropExtension $
-        case List.stripPrefix (output <> "/") file of
-          Nothing -> input </> output -- This should be impossible.
-          Just rel -> case decodePathName rel of
-            Nothing -> input </> rel
-            Just decoded -> decoded
+toInputPath input output file =
+  case List.stripPrefix (output <> "/") file of
+    Nothing -> input </> output -- This should be impossible.
+    Just rel -> case decodePathName rel of
+      Nothing -> input </> rel
+      Just decoded -> decoded
+
+-- | Hints on how to map output file names to input names.
+--
+-- @since 0.5.0.0
+data InputExt
+  = -- | The compiler needs a file from the input directory.  The
+    -- attached file extension is the extension of the input file.
+    FromProjectInput Ext
+  | -- | The compiler needs a file that was produced by the output of
+    -- another compiler.  Therefore the input file that is needed will
+    -- already be in the output directory.
+    --
+    -- The two file extensions attached to this constructor are:
+    --
+    -- 1. The original input extension to the previous compiler.
+    -- 2. The original output extension to the previous compiler.
+    FromBuildProduct Ext Ext
+
+-- | Variant of 'toInputPath' that uses the hints in 'InputExt'.
+--
+-- @since 0.5.0.0
+toInputPathViaInputExt ::
+  -- | The input directory.
+  FilePath ->
+  -- | The output directory.
+  FilePath ->
+  -- | What we know about the input.
+  InputExt ->
+  -- | The output file name.
+  FilePath ->
+  -- | The output file mapped to an input file.
+  FilePath
+toInputPathViaInputExt indir outdir = \case
+  FromProjectInput _ext ->
+    -- Example: build/foo.md.slides -> foo.md
+    FilePath.dropExtension . toInputPath indir outdir
+  FromBuildProduct extIn extOut -> \output ->
+    -- Example: build/foo.slides.pdf -> build/foo.md.slides
+    let file = FilePath.dropExtension (FilePath.dropExtension output)
+     in file <> fromExt extIn <> fromExt extOut
 
 -- | Translate an entire file path into a single file name.  File
 -- extensions are preserved.

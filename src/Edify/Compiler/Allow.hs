@@ -31,7 +31,7 @@ import qualified Edify.Compiler.Options as Options
 allowMarkdown ::
   forall m.
   MonadIO m =>
-  Options.OptionsF Identity ->
+  Options.Options ->
   NonEmpty FilePath ->
   m ()
 allowMarkdown options files =
@@ -50,6 +50,7 @@ allowMarkdown options files =
     commands = cata $ \case
       Audit.AuditEnd -> mempty
       Audit.AuditItems items -> fold items
+      Audit.AuditAsset _file -> mempty
       Audit.AuditFile _file items -> items
       Audit.AuditCommand path cmd _fp -> one (path, cmd)
 
@@ -62,7 +63,7 @@ allowMarkdown options files =
 main ::
   MonadIO m =>
   -- | Compiler options.
-  Options.OptionsF Identity ->
+  Options.Options ->
   -- | The files to fingerprint.
   NonEmpty FilePath ->
   -- | IO actions that create the files.

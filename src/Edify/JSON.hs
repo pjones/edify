@@ -19,7 +19,11 @@ module Edify.JSON
     Aeson.FromJSON,
 
     -- * Parsing w/ Default Values
+    Readiness (..),
+    Parsed,
+    Resolved,
     Default,
+    Checked,
   )
 where
 
@@ -82,11 +86,32 @@ instance
   where
   parseJSON = fmap (RecursiveJSON . Recursion.embed) . Aeson.parseJSON
 
+-- | States of readiness.
+--
+-- @since 0.5.0.0
+data Readiness
+  = -- | A value has been parsed but not validated.
+    Parsed
+  | -- | A value has been resolved to its final value.
+    Resolved
+
+-- | The 'Readiness' data constructor promoted to a type.
+--
+-- @since 0.5.0.0
+type Parsed = 'Parsed
+
+-- | The 'Readiness' data constructor promoted to a type.
+--
+-- @since 0.5.0.0
+type Resolved = 'Resolved
+
 -- | A type family for types that have a default value.
---
--- When the @f@ argument is 'Maybe', the value is wrapped in a 'Maybe'.
---
--- When the @f@ arguments is 'Identity' the type is exposed directly.
-type family Default (f :: Type -> Type) a where
-  Default Maybe a = Maybe a
-  Default Identity a = a
+type family Default (f :: Readiness) a where
+  Default Parsed a = Maybe a
+  Default Resolved a = a
+
+-- | A type family for parsing as one type, but resolve to a safer
+-- more restricted type.
+type family Checked (f :: Readiness) a b where
+  Checked Parsed a _ = a
+  Checked Resolved _ b = b
