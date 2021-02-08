@@ -19,29 +19,29 @@ module Edify.Command.Audit
   )
 where
 
+import Control.Lens ((^.))
 import qualified Edify.Compiler.Audit as Audit
-import qualified Edify.Compiler.Options as Options
+import qualified Edify.Compiler.User as User
 import Edify.JSON
+import qualified Edify.Project.Inputs as Project
 import qualified Options.Applicative as Opt
 
 -- | Options that affect audits.
 --
 -- @since 0.5.0.0
-data Flags (f :: Readiness) = Flags
+data Flags = Flags
   { flagsOutputMode :: Audit.Mode,
-    flagsCompilerOptions :: Options.OptionsF f,
-    -- FIXME: Should this try to use the input files from the project config?
+    flagsProjectInputDir :: Project.TopLevelF Parsed,
     flagsInputFiles :: NonEmpty FilePath
   }
-  deriving stock (Generic)
 
 -- | Command description and option parser.
 --
 -- @since 0.5.0.0
-desc :: (String, Opt.Parser (Flags Parsed))
+desc :: (String, Opt.Parser Flags)
 desc = ("Analyze and report any file security issues", flags)
   where
-    flags :: Opt.Parser (Flags Parsed)
+    flags :: Opt.Parser Flags
     flags =
       Flags
         <$> asum
@@ -61,7 +61,7 @@ desc = ("Analyze and report any file security issues", flags)
                   ]
               )
           ]
-        <*> Options.fromCommandLine
+        <*> Project.topLevelFromCommandLine
         <*> ( fromList
                 <$> some
                   ( Opt.strArgument $
@@ -72,28 +72,14 @@ desc = ("Analyze and report any file security issues", flags)
                   )
             )
 
--- | Resolve all options to their final values.
---
--- @since 0.5.0.0
-resolve :: MonadIO m => Flags Parsed -> m (Flags Resolved)
-resolve Flags {..} = do
-  compiler <- Options.resolve flagsCompilerOptions
-  pure
-    Flags
-      { flagsCompilerOptions = compiler,
-        flagsOutputMode = flagsOutputMode,
-        flagsInputFiles = flagsInputFiles
-      }
-
 -- | Execute a build.
 --
 -- @since 0.5.0.0
-main :: Flags Parsed -> IO ()
-main = resolve >=> go
-  where
-    go :: Flags Resolved -> IO ()
-    go Flags {..} =
-      Audit.main
-        flagsOutputMode
-        flagsCompilerOptions
-        flagsInputFiles
+main :: User.User -> Flags -> IO ()
+main user Flags {..} = do
+  toplevel <- Project.resolveTopLevel flagsProjectInputDir
+  Audit.main
+    flagsOutputMode
+    (user ^. #userCommandAllowDir)
+    (toplevel ^. #projectDirectory)
+    flagsInputFiles

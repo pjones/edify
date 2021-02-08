@@ -14,9 +14,11 @@
 -- License: Apache-2.0
 module Edify.Compiler.Fingerprint
   ( Fingerprint,
+    fingerprint,
     Fingerprinted (..),
     Status (..),
     Self,
+    self,
     Commands,
     Cache,
     cache,
@@ -46,7 +48,7 @@ data Fingerprint a = Fingerprint
     -- | The content of the fingerprint.
     fingerprintContent :: a
   }
-  deriving stock (Generic, Show, Functor, Foldable, Traversable)
+  deriving stock (Generic, Eq, Show, Functor, Foldable, Traversable)
   deriving (ToJSON, FromJSON) via GenericJSON (Fingerprint a)
 
 -- | Fingerprint status.
@@ -72,6 +74,9 @@ newtype Self = Self
   {unSelf :: Text}
   deriving stock (Generic, Show)
   deriving newtype (ToJSON, FromJSON, Eq)
+
+instance Semigroup Self where
+  (<>) _ y = y
 
 instance Fingerprinted Self where
   type Subject Self = LByteString
@@ -110,6 +115,12 @@ instance Fingerprinted Commands where
           then Verified
           else Mismatch
 
+-- | Generate a fingerprint.
+--
+-- @since 0.5.0.0
+fingerprint :: Fingerprinted a => FilePath -> Subject a -> Fingerprint a
+fingerprint file subject = Fingerprint file (generate subject)
+
 -- | Fingerprint cache.
 --
 -- @since 0.5.0.0
@@ -130,7 +141,7 @@ cache ::
   Cache a
 cache file subject (Cache cs) =
   let key = cacheKey file
-      entry = Fingerprint file (generate subject)
+      entry = fingerprint file subject
    in Cache $
         HashMap.insertWith
           ( \x y ->
@@ -141,6 +152,14 @@ cache file subject (Cache cs) =
           key
           entry
           cs
+
+-- | Fingerprint and cache the contents of the given file.
+--
+-- @since 0.5.0.0
+self :: MonadIO m => FilePath -> m (Cache Self)
+self file = do
+  bs <- readFileLBS file
+  pure (cache file bs mempty)
 
 -- | Read the fingerprint for a file from the cache or from the
 -- fingerprint directory.
@@ -181,7 +200,9 @@ read (Cache cache) dir file =
 write ::
   MonadIO m =>
   ToJSON a =>
+  -- | Directory where allow files are stored.
   FilePath ->
+  -- | The cache to write.
   Cache a ->
   m ()
 write dir (Cache cache) =

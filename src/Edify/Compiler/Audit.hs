@@ -22,7 +22,6 @@ module Edify.Compiler.Audit
   )
 where
 
-import Control.Lens ((^.))
 import Control.Monad.Except (throwError)
 import qualified Control.Monad.Free.Church as Free
 import qualified Data.Aeson as Aeson
@@ -36,7 +35,6 @@ import qualified Edify.Compiler.Eval as Eval
 import qualified Edify.Compiler.Fingerprint as Fingerprint
 import qualified Edify.Compiler.Lang as Lang
 import qualified Edify.Compiler.Markdown as Markdown
-import qualified Edify.Compiler.Options as Options
 import qualified Edify.Input as Input
 import Edify.JSON
 import qualified Edify.Text.Indent as Indent
@@ -106,10 +104,11 @@ type AuditT m a = Eval.Eval (ExceptT (Eval.Runtime, Error.Error) m) a
 -- @since 0.5.0.0
 eval ::
   MonadIO m =>
-  Options.Options ->
+  -- | Directory where allow files are stored.
+  FilePath ->
   Lang.Compiler a ->
   AuditT m (a, Audit)
-eval options = Free.iterM go . fmap (,mempty)
+eval allowDir = Free.iterM go . fmap (,mempty)
   where
     go :: MonadIO m => Lang.CompilerF (AuditT m (a, Audit)) -> AuditT m (a, Audit)
     go = \case
@@ -120,14 +119,14 @@ eval options = Free.iterM go . fmap (,mempty)
         k abs <&> second (embed (AuditAsset abs) <>)
       Lang.ReadInput input subexp k -> do
         (x, a) <- Eval.withInput input abort $ \path content ->
-          eval options (subexp content)
+          eval allowDir (subexp content)
             <&> ( case path of
                     Nothing -> id
                     Just file -> second (embed . AuditFile file)
                 )
         k x <&> second (a <>)
       Lang.Exec (command, _input) k -> do
-        (path, status) <- Eval.commandStatus options command abort (curry pure)
+        (path, status) <- Eval.commandStatus allowDir command abort (curry pure)
         k command <&> second (embed (AuditCommand path command status) <>)
       Lang.Abort e ->
         abort e
@@ -143,10 +142,13 @@ eval options = Free.iterM go . fmap (,mempty)
 audit ::
   forall m.
   MonadIO m =>
-  Options.Options ->
+  -- | Directory where allow files are stored.
+  FilePath ->
+  -- | Files to audit.
   NonEmpty FilePath ->
+  -- | The audit report.
   m (Either (Eval.Runtime, Error.Error) Audit)
-audit options files =
+audit allowDir files =
   runExceptT $
     foldrM
       (\x y -> (y <>) <$> go (Markdown.compile $ Input.FromFile x))
@@ -155,7 +157,7 @@ audit options files =
   where
     go :: Lang.Compiler a -> ExceptT (Eval.Runtime, Error.Error) m Audit
     go =
-      eval options
+      eval allowDir
         >>> evaluatingStateT Eval.emptyRuntime
         >>> runExceptT
         >>> fmap (second snd)
@@ -166,13 +168,13 @@ audit options files =
 --
 -- @since 0.5.0.0
 blockedReport ::
-  -- | Compiler options.
-  Options.Options ->
+  -- | Project input directory.
+  FilePath ->
   -- | The audit value to use.
   Audit ->
   -- | Nothing when no commands are blocked.
   Maybe (PP.Doc PP.AnsiStyle)
-blockedReport options =
+blockedReport inputDir =
   blocked >>> \case
     [] -> Nothing
     xs ->
@@ -201,7 +203,7 @@ blockedReport options =
           PP.nest
             2
             ( PP.line
-                <> PP.sep ["From file:", ppFilePath options path]
+                <> PP.sep ["From file:", ppFilePath inputDir path]
             ),
           PP.line
         ]
@@ -209,17 +211,17 @@ blockedReport options =
 -- | Product a full report using the given audit trail.
 --
 -- @since 0.5.0.0
-fullReport :: Options.Options -> Audit -> PP.Doc PP.AnsiStyle
-fullReport options = cata go >>> (<> PP.line)
+fullReport :: FilePath -> Audit -> PP.Doc PP.AnsiStyle
+fullReport inputDir = cata go >>> (<> PP.line)
   where
     go :: AuditF (PP.Doc PP.AnsiStyle) -> PP.Doc PP.AnsiStyle
     go = \case
       AuditEnd -> mempty
       AuditItems docs -> fold docs
       AuditAsset path ->
-        PP.line <> PP.sep ["Asset" <> PP.colon, ppFilePath options path]
+        PP.line <> PP.sep ["Asset" <> PP.colon, ppFilePath inputDir path]
       AuditFile path doc ->
-        let entry = PP.sep ["Read" <> PP.colon, ppFilePath options path]
+        let entry = PP.sep ["Read" <> PP.colon, ppFilePath inputDir path]
          in PP.line <> entry <> PP.nest 2 doc
       AuditCommand _path command status ->
         let entry =
@@ -233,10 +235,8 @@ fullReport options = cata go >>> (<> PP.line)
 -- | Pretty print a file path.
 --
 -- @since 0.5.0.0
-ppFilePath :: Options.Options -> FilePath -> PP.Doc ann
-ppFilePath options =
-  FilePath.makeRelative (options ^. #optionsProjectDirectory)
-    >>> PP.pretty
+ppFilePath :: FilePath -> FilePath -> PP.Doc ann
+ppFilePath dir = FilePath.makeRelative dir >>> PP.pretty
 
 -- | Pretty print a fingerprint status.
 --
@@ -254,12 +254,18 @@ ppStatus = \case
 --
 -- @since 0.5.0.0
 main ::
+  -- | Output mode.
   Mode ->
-  Options.Options ->
+  -- | Directory where allow files are stored.
+  FilePath ->
+  -- | Project input directory.
+  FilePath ->
+  -- | List of files to audit.
   NonEmpty FilePath ->
+  -- | Audit action.
   IO ()
-main mode options files =
-  audit options files >>= \case
+main mode allowDir inputDir inputs =
+  audit allowDir inputs >>= \case
     Left (r, e) ->
       -- FIXME: Need proper error reporting.
       print r >> print e
@@ -267,9 +273,9 @@ main mode options files =
       case mode of
         JsonAuditMode -> putLBS (Aeson.encode info)
         FullAuditMode ->
-          printReport (fullReport options info)
+          printReport (fullReport inputDir info)
         BlockedCommandAuditMode ->
-          case blockedReport options info of
+          case blockedReport inputDir info of
             Nothing -> pass
             Just r -> do
               printReport r

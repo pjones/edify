@@ -25,12 +25,11 @@ module Edify.Compiler.Eval
   )
 where
 
-import Control.Lens ((%=), (.=), (^.))
+import Control.Lens ((%=), (.=))
 import qualified Edify.Compiler.Cycle as Cycle
 import qualified Edify.Compiler.Error as Error
 import qualified Edify.Compiler.FilePath as FilePath
 import qualified Edify.Compiler.Fingerprint as Fingerprint
-import qualified Edify.Compiler.Options as Options
 import qualified Edify.Compiler.Stack as Stack
 import qualified Edify.Input as Input
 
@@ -89,7 +88,7 @@ depends input onerror onsuccess =
       case Stack.top stack of
         Nothing -> onsuccess (Just file)
         Just top -> do
-          full <- FilePath.makeAbsoluteTo top file
+          full <- FilePath.makeAbsoluteToFile top file
           case Cycle.depends top full cycles of
             (Cycle.Cycles cs, _) ->
               onerror (Error.DependencyCycleError top file cs)
@@ -132,8 +131,8 @@ withInput input abort f = do
 -- @since 0.5.0.0
 commandStatus ::
   MonadIO m =>
-  -- | Compiler options.
-  Options.Options ->
+  -- | Directory where allow files are stored.
+  FilePath ->
   -- | The command to verity.
   Text ->
   -- | Continuation to call if an error occurs.
@@ -143,13 +142,12 @@ commandStatus ::
   (FilePath -> Fingerprint.Status -> Eval m a) ->
   -- | Final result.
   Eval m a
-commandStatus options command onerror f = do
+commandStatus allowDir command onerror f = do
   Runtime {fpcache, stack} <- get
   case Stack.top stack of
     Nothing ->
       onerror (Error.InternalBugError "verifyCommand called on empty stack")
     Just top -> do
-      let allowDir = options ^. #optionsUserConfig . #userCommandAllowDir
       (fp, cache) <- Fingerprint.read fpcache allowDir top
       #fpcache .= cache
       case Fingerprint.verify command . fold <$> fp of
@@ -161,8 +159,8 @@ commandStatus options command onerror f = do
 -- @since 0.5.0.0
 verifyCommand ::
   MonadIO m =>
-  -- | Compiler options.
-  Options.Options ->
+  -- | Directory where allow files are stored.
+  FilePath ->
   -- | The command to verify.
   Text ->
   -- | Continuation if an error occurs.
@@ -171,8 +169,8 @@ verifyCommand ::
   (Text -> Eval m a) ->
   -- | Final result.
   Eval m a
-verifyCommand options command onerror onsuccess = do
-  commandStatus options command onerror $ \file status ->
+verifyCommand allowDir command onerror onsuccess = do
+  commandStatus allowDir command onerror $ \file status ->
     case status of
       Fingerprint.Mismatch ->
         onerror (Error.CommandBlockedError file command)

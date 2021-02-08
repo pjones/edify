@@ -18,6 +18,9 @@ module Edify.JSON
     Aeson.ToJSON,
     Aeson.FromJSON,
 
+    -- * Two Types, One JSON Document
+    (:*:) (..),
+
     -- * Parsing w/ Default Values
     Readiness (..),
     Parsed,
@@ -27,9 +30,12 @@ module Edify.JSON
   )
 where
 
+import qualified Control.Lens as Lens
 import qualified Data.Aeson as Aeson
 import qualified Data.Functor.Foldable as Recursion
+import qualified Data.HashMap.Strict as HashMap
 import GHC.Generics (Rep)
+import qualified Generics.SOP as SOP
 
 -- | Type wrapper for automatic JSON deriving.
 newtype GenericJSON a = GenericJSON
@@ -43,6 +49,7 @@ aesonOptions =
       Aeson.constructorTagModifier = kebabCase,
       Aeson.allNullaryToStringTag = True,
       Aeson.omitNothingFields = True,
+      Aeson.rejectUnknownFields = True,
       Aeson.sumEncoding = Aeson.ObjectWithSingleField
     }
   where
@@ -85,6 +92,58 @@ instance
   Aeson.FromJSON (RecursiveJSON r)
   where
   parseJSON = fmap (RecursiveJSON . Recursion.embed) . Aeson.parseJSON
+
+-- | Join two types together so they work with the same JSON document.
+newtype (:*:) a b = Join
+  {unJoin :: (a, b)}
+  deriving stock (Generic)
+
+instance Lens.Field1 (a :*: b) (a' :*: b) a a' where
+  _1 = Lens.lens (fst . unJoin) (\(Join t) -> Join . (,snd t))
+
+instance Lens.Field2 (a :*: b) (a :*: b') b b' where
+  _2 = Lens.lens (snd . unJoin) (\(Join t) -> Join . (fst t,))
+
+instance (Aeson.ToJSON a, Aeson.ToJSON b) => Aeson.ToJSON (a :*: b) where
+  toJSON prod =
+    case bimap Aeson.toJSON Aeson.toJSON (unJoin prod) of
+      (Aeson.Object x, Aeson.Object y) -> Aeson.Object (x <> y)
+      (x, _) -> x
+
+instance
+  ( SOP.IsProductType a xs,
+    SOP.HasDatatypeInfo a,
+    Aeson.FromJSON a,
+    Aeson.FromJSON b
+  ) =>
+  Aeson.FromJSON (a :*: b)
+  where
+  parseJSON = \case
+    Aeson.Object v ->
+      let leftFields =
+            SOP.datatypeInfo (Proxy :: Proxy a)
+              & SOP.constructorInfo
+              & fieldNames
+          leftObj = HashMap.filterWithKey (\k _v -> k `elem` leftFields) v
+          rightObj = HashMap.difference v leftObj
+       in fmap
+            Join
+            ( (,)
+                <$> Aeson.parseJSON (Aeson.Object leftObj)
+                <*> Aeson.parseJSON (Aeson.Object rightObj)
+            )
+    _others ->
+      fail "expected a JSON object"
+    where
+      fieldNames :: SOP.NP SOP.ConstructorInfo '[cs] -> [Text]
+      fieldNames =
+        SOP.hd >>> \case
+          SOP.Constructor {} -> []
+          SOP.Infix {} -> []
+          SOP.Record _ fields ->
+            SOP.hliftA (SOP.K . SOP.fieldName) fields
+              & SOP.hcollapse
+              & map (toText . Aeson.fieldLabelModifier aesonOptions)
 
 -- | States of readiness.
 --

@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications #-}
+
 -- |
 --
 -- Copyright:
@@ -19,31 +21,34 @@ module Edify.Command.Build
   )
 where
 
-import Control.Lens ((^.))
+import Control.Lens ((.~), (^.))
 import Data.Generics.Labels ()
-import qualified Edify.Compiler.Options as Options
-import qualified Edify.Compiler.Project as Project
+import Data.Generics.Product (field')
 import qualified Edify.Compiler.Shake as Shake
+import qualified Edify.Compiler.User as User
 import Edify.JSON
+import qualified Edify.Project as Project
+import qualified Edify.System.Exit as Exit
 import qualified Options.Applicative as Opt
 
 -- | Options that affect builds.
 --
 -- @since 0.5.0.0
-data Flags (f :: Readiness) = Flags
+data Flags = Flags
   { flagsCommandSafety :: Shake.CommandSafety,
     flagsOnlyTargets :: Maybe (NonEmpty Text),
-    flagsCompilerOptions :: Options.OptionsF f,
-    flagsProjectOptions :: Project.ProjectF f
+    flagsProjectConfig :: Project.ConfigF Parsed,
+    flagsProjectTopLevel :: Project.TopLevelF Parsed,
+    flagsProjectInputs :: Project.InputsF Parsed
   }
 
 -- | Command description and option parser.
 --
 -- @since 0.5.0.0
-desc :: (String, Opt.Parser (Flags Parsed))
+desc :: (String, Opt.Parser Flags)
 desc = ("Build one or more projects", flags)
   where
-    flags :: Opt.Parser (Flags Parsed)
+    flags :: Opt.Parser Flags
     flags =
       Flags
         <$> Opt.flag
@@ -67,40 +72,29 @@ desc = ("Build one or more projects", flags)
                       ]
                 )
           )
-        <*> Options.fromCommandLine
-        <*> Project.fromCommandLine
-
--- | Resolve all options to their final values.
---
--- @since 0.5.0.0
-resolve :: MonadIO m => Flags Parsed -> m (Either Project.Error (Flags Resolved))
-resolve Flags {..} = runExceptT $ do
-  compiler <- Options.resolve flagsCompilerOptions
-  project <- Project.resolve flagsProjectOptions
-
-  pure
-    Flags
-      { flagsCommandSafety = flagsCommandSafety,
-        flagsOnlyTargets = flagsOnlyTargets,
-        flagsCompilerOptions = compiler,
-        flagsProjectOptions = project
-      }
+        <*> Project.configFromCommandLine
+        <*> Project.topLevelFromCommandLine
+        <*> Project.inputsFromCommandLine
 
 -- | Execute a build.
 --
 -- @since 0.5.0.0
-main :: Flags Parsed -> IO ()
-main = resolve >=> go
+main :: User.User -> Flags -> IO ()
+main user Flags {..} =
+  resolve <&> filterTargets flagsOnlyTargets >>= \case
+    Nothing ->
+      Exit.withError "the --target option does not match any project target"
+    Just project ->
+      Shake.main user project flagsCommandSafety
   where
-    go :: Either Project.Error (Flags Resolved) -> IO ()
-    go = \case
-      Left e -> die (show e)
-      Right Flags {..} -> do
-        case filterTargets flagsOnlyTargets flagsProjectOptions of
-          Nothing ->
-            die "--target option does not match any project target"
-          Just project ->
-            Shake.main flagsCompilerOptions project flagsCommandSafety
+    resolve :: IO Project.Project
+    resolve =
+      Project.resolve
+        user
+        flagsProjectTopLevel
+        flagsProjectInputs
+        flagsProjectConfig
+        >>= either (Exit.withError . Project.renderError) pure
 
     filterTargets ::
       -- | User selected list of target names.
@@ -112,7 +106,7 @@ main = resolve >=> go
     filterTargets = \case
       Nothing -> Just
       Just names -> \project -> do
-        let targets = toList (project ^. #projectTargets)
+        let targets = toList (project ^. #projectConfig . #projectTargets)
             predicate t = (t ^. #targetName) `elem` names
         list <- nonEmpty (filter predicate targets)
-        pure (project {Project.projectTargets = list})
+        pure (project & #projectConfig . field' @"projectTargets" .~ list)

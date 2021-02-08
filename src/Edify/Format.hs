@@ -22,7 +22,6 @@ module Edify.Format
   )
 where
 
-import qualified Byline as B
 import qualified Edify.Format.Markdown as Markdown
 import Edify.Text.Narrow (Token (..))
 import qualified Edify.Text.Narrow as Narrow
@@ -35,11 +34,6 @@ data Error
   = NarrowError Narrow.Error
   | MarkdownError Markdown.Error
   deriving (Generic, Show)
-
-instance B.ToStylizedText Error where
-  toStylizedText = \case
-    NarrowError e -> B.toStylizedText e
-    MarkdownError e -> B.toStylizedText e
 
 -- | Functions table for various formats.
 --

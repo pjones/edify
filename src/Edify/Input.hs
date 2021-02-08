@@ -14,17 +14,33 @@
 -- License: Apache-2.0
 module Edify.Input
   ( Input (..),
-    Error (..),
     filePathToInput,
     filePathFromInput,
     readInput,
+
+    -- * Encoding and Decoding Files
+    ReadMode (..),
+    decodeFromFile,
+    WriteMode (..),
+    encodeToFile,
+
+    -- * Error Handling
+    Error (..),
+    renderInput,
+    renderError,
   )
 where
 
-import qualified Byline as B
+import Control.Monad.Except (throwError)
+import qualified Data.Aeson as Aeson
 import qualified Data.Text.Lazy.IO as LText
+import qualified Data.Text.Prettyprint.Doc as PP
+import qualified Data.Yaml as YAML
+import qualified Edify.Compiler.Fingerprint as Fingerprint
+import qualified Prettyprinter.Render.Terminal as PP
 import System.Directory (getCurrentDirectory)
 import qualified System.Directory as Dir
+import qualified System.FilePath as FilePath
 
 -- | Where to read input from.
 --
@@ -38,33 +54,94 @@ data Input
     FromText LText
   deriving (Show)
 
-instance B.ToStylizedText Input where
-  toStylizedText = \case
-    FromFile path ->
-      "file " <> (B.text (toText path) <> B.fg B.green)
-    FromHandle h ->
-      (if h == stdin then "<stdin>" else B.text (show h))
-        <> B.fg B.green
-    -- B.text "input handle"
-    FromText t ->
-      "text:\n====\n"
-        <> (B.text (toStrict t) <> B.fg B.green)
-        <> "\n====\n"
+-- | Render an 'Input' value for displaying to the user.
+--
+-- @since 0.5.0.0
+renderInput :: Input -> PP.Doc ann
+renderInput = \case
+  FromFile path ->
+    "file " <> PP.pretty path
+  FromHandle h ->
+    if h == stdin
+      then "<stdin>"
+      else PP.pretty (show h :: Text)
+  FromText t ->
+    "text "
+      <> PP.nest 4 (PP.line <> PP.pretty t)
+      <> PP.line
 
 -- | Errors that may occur while processing input.
 --
 -- @since 0.5.0.0
-newtype Error
+data Error
   = -- | The given file does not exist.
     FileDoesNotExist FilePath
+  | -- | File exists and we don't want to overwrite it.
+    FileWillBeOverritten FilePath
+  | -- | Fingerprint doesn't match.
+    FileNotApprovedForReading FilePath
+  | -- | Can't parse a JSON file.
+    FailedJsonParse FilePath String
+  | -- | Can't parse a YAML file.
+    FailedYamlParse FilePath YAML.ParseException
   deriving (Generic, Show)
 
-instance B.ToStylizedText Error where
-  toStylizedText = \case
-    FileDoesNotExist path ->
-      mconcat
-        [ "file does not exist ",
-          B.text (toText path) <> B.fg B.magenta
+-- | Render an error message to display to the user.
+--
+-- @since 0.5.0.0
+renderError :: Error -> PP.Doc PP.AnsiStyle
+renderError = \case
+  FileDoesNotExist file ->
+    fileError
+      file
+      [ PP.annotate (PP.color PP.Red) "does not exist"
+      ]
+  FileWillBeOverritten file ->
+    fileError
+      file
+      [ PP.annotate (PP.color PP.Red) "would be overwritten"
+      ]
+  FileNotApprovedForReading file ->
+    PP.vcat
+      [ fileError
+          file
+          [ PP.annotate (PP.color PP.Red) "is not approved for reading",
+            "because it may contain shell commands."
+          ],
+        "If the file is safe to read you can approve it with" <> PP.colon,
+        PP.nest 4 (PP.line <> "edify allow " <> PP.pretty file)
+      ]
+  FailedJsonParse file msg ->
+    fileError
+      file
+      [ "contains a JSON syntax error:",
+        PP.annotate (PP.color PP.Red) (PP.pretty msg)
+      ]
+  FailedYamlParse file e ->
+    fileError
+      file
+      [ "contains a YAML syntax error:",
+        PP.annotate
+          (PP.color PP.Red)
+          (PP.pretty $ YAML.prettyPrintParseException e)
+      ]
+  where
+    fileError :: FilePath -> [PP.Doc PP.AnsiStyle] -> PP.Doc PP.AnsiStyle
+    fileError file msg =
+      PP.vcat
+        [ "file" <> PP.colon,
+          PP.nest
+            2
+            ( mconcat
+                [ PP.hardline,
+                  PP.fillSep
+                    ( PP.dquotes
+                        (PP.annotate (PP.color PP.Yellow) (PP.pretty file)) :
+                      msg
+                    )
+                ]
+            )
+            <> PP.hardline
         ]
 
 -- | Figure out what kind of input a file path refers to.
@@ -103,33 +180,84 @@ readInput = \case
   FromText text ->
     pure (Right text)
 
--- | Loading JSON data from a file.
+-- | How to deal with fingerprints when reading files.
 --
 -- @since 0.5.0.0
--- parseFromFile ::
---   forall m a.
---   MonadIO m =>
---   Aeson.FromJSON a =>
---   FilePath ->
---   m (Either String a)
--- parseFromFile (defaultExtension "yml" -> file) = do
---   unlessM (liftIO $ doesFileExist file) $
---     throwError (
---   case takeExtension file of
---     ".json" -> fromJSON file
---     _ -> fromYAML file
---   where
---     -- Load options from YAML via the FromJSON instance.
---     fromYAML :: FilePath -> m (Either String a)
---     fromYAML file = undefined
---     -- Load options from JSON via the FromJSON instance.
---     fromJSON :: FilePath -> m (Either String a)
---     fromJSON = fmap Aeson.eitherDecode . readFileLBS
+data ReadMode
+  = OnlyReadApprovedFiles FilePath
+  | ReadWithoutFingerprint
 
--- | If a file name is missing an extension, add it.
+-- | Decode the contents of a file (JSON or YAML).
 --
 -- @since 0.5.0.0
--- defaultExtension :: String -> FilePath -> FilePath
--- defaultExtension ext file
---   | hasExtension file = file
---   | otherwise = file <.> ext
+decodeFromFile ::
+  forall m a.
+  MonadIO m =>
+  Aeson.FromJSON a =>
+  ReadMode ->
+  FilePath ->
+  m (Either Error a)
+decodeFromFile mode file = do
+  exists <- liftIO (Dir.doesFileExist file)
+  if exists
+    then go mode
+    else pure (Left $ FileDoesNotExist file)
+  where
+    go :: ReadMode -> m (Either Error a)
+    go = \case
+      OnlyReadApprovedFiles fpdir -> do
+        content <- readFileLBS file
+        let fpA = Fingerprint.fingerprint file content
+        Fingerprint.read mempty fpdir file <&> fst >>= \case
+          Nothing ->
+            pure (Left $ FileNotApprovedForReading file)
+          Just (fpB :: Fingerprint.Fingerprint Fingerprint.Self)
+            | fpA == fpB -> pure (parse content)
+            | otherwise -> pure (Left $ FileNotApprovedForReading file)
+      ReadWithoutFingerprint ->
+        readFileLBS file <&> parse
+    parse :: LByteString -> Either Error a
+    parse bytes = case FilePath.takeExtension file of
+      ".json" ->
+        Aeson.eitherDecode bytes
+          & first (FailedJsonParse file)
+      _yaml ->
+        YAML.decodeEither' (toStrict bytes)
+          & first (FailedYamlParse file)
+
+-- | How to deal with fingerprints with writing files.
+--
+-- @since 0.5.0.0
+data WriteMode
+  = WriteFingerprintTo FilePath
+  | WriteWithoutFingerprint
+
+-- | Encode a value (JSON/YAML) then write it to a file.
+--
+-- @since 0.5.0.0
+encodeToFile ::
+  MonadIO m =>
+  Aeson.ToJSON a =>
+  -- | How to deal with fingerprints.
+  WriteMode ->
+  -- | The file to write.
+  FilePath ->
+  -- | The value to encode.
+  a ->
+  -- | Unit or error.
+  m (Either Error ())
+encodeToFile mode file x = runExceptT $ do
+  whenM (liftIO (Dir.doesFileExist file)) $
+    throwError (FileWillBeOverritten file)
+
+  let bytes = case FilePath.takeExtension file of
+        ".json" -> Aeson.encode x
+        _yaml -> toLazy (YAML.encode x)
+
+  writeFileLBS file bytes
+
+  case mode of
+    WriteWithoutFingerprint -> pass
+    WriteFingerprintTo dir ->
+      let cache = Fingerprint.cache file bytes mempty
+       in Fingerprint.write dir (cache :: Fingerprint.Cache Fingerprint.Self)

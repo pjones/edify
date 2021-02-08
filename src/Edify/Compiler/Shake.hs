@@ -35,11 +35,11 @@ import qualified Edify.Compiler.Eval as Eval
 import qualified Edify.Compiler.FilePath as FilePath
 import qualified Edify.Compiler.Lang as Lang
 import qualified Edify.Compiler.Markdown as Markdown
-import qualified Edify.Compiler.Options as Options
-import qualified Edify.Compiler.Project as Project
 import qualified Edify.Compiler.Stack as Stack
+import qualified Edify.Compiler.User as User
 import qualified Edify.Input as Input
 import qualified Edify.Markdown.AST as AST
+import qualified Edify.Project as Project
 import qualified System.Directory as Directory
 
 -- | Safety controls around running shell commands.
@@ -53,19 +53,19 @@ data CommandSafety
 --
 -- @since 0.5.0.0
 eval ::
-  Options.Options ->
+  User.User ->
   Project.Project ->
   Project.Target ->
   CommandSafety ->
   Asset.AssetMap ->
   Lang.Compiler a ->
   Eval Shake.Action a
-eval options project target cmdmode assets = Free.iterM go
+eval user project target cmdmode assets = Free.iterM go
   where
     go :: Lang.CompilerF (Eval Shake.Action a) -> Eval Shake.Action a
     go = \case
       Lang.Tabstop k ->
-        k (project ^. #projectTabstop)
+        k (project ^. #projectConfig . #projectTabstop)
       Lang.Asset file k ->
         Eval.depends (Input.FromFile file) abort $ \case
           Nothing -> do
@@ -76,8 +76,8 @@ eval options project target cmdmode assets = Free.iterM go
             k file
           Just path
             | HashMap.member (FilePath.takeExtension path) assets ->
-              let indir = options ^. #optionsProjectDirectory
-                  outdir = project ^. #projectOutputDirectory
+              let indir = project ^. #projectTopLevel . #projectDirectory
+                  outdir = project ^. #projectConfig . #projectOutputDirectory
                   ext = Asset.assetExtension (Project.targetFormat target)
                   output =
                     FilePath.toOutputPath indir outdir path
@@ -87,7 +87,7 @@ eval options project target cmdmode assets = Free.iterM go
       Lang.ReadInput input subexp k -> do
         x <- Eval.withInput input abort $ \path content -> do
           whenJust path (lift . Shake.need . one)
-          eval options project target cmdmode assets (subexp content)
+          eval user project target cmdmode assets (subexp content)
         k x
       Lang.Exec (pending, input) k ->
         verifyCommandWithBypass pending $ \approved -> do
@@ -124,7 +124,7 @@ eval options project target cmdmode assets = Free.iterM go
     verifyCommandWithBypass command f =
       case cmdmode of
         RequireCommandFingerprints ->
-          Eval.verifyCommand options command abort f
+          Eval.verifyCommand (user ^. #userCommandAllowDir) command abort f
         UnsafeAllowAllCommands -> do
           warn ("Command forced due to --unsafe-allow-commands: " <> command)
           f command
@@ -147,7 +147,7 @@ assetEval project compiler (input, output) = do
   where
     go = \case
       Asset.SizeHints k ->
-        let Project.SizeHints {..} = Project.projectSizeHints project
+        let Project.SizeHints {..} = project ^. #projectConfig . #projectSizeHints
          in k (hintWidth, hintHeight)
       Asset.Command cmd args k ->
         exec [] cmd args >> k
@@ -181,8 +181,6 @@ assetEval project compiler (input, output) = do
 --
 -- @since 0.5.0.0
 fileExtensionRule ::
-  -- | Compiler options.
-  Options.Options ->
   -- | The project that is currently active.
   Project.Project ->
   -- | A pair of file extensions.  The first is for the input file and
@@ -193,8 +191,8 @@ fileExtensionRule ::
   (FilePath -> FilePath -> Shake.Action ()) ->
   -- | The generated Shake rules.
   Shake.Rules ()
-fileExtensionRule options project (inputExt, extOut) f =
-  let dir = project ^. #projectOutputDirectory
+fileExtensionRule project (inputExt, extOut) f =
+  let dir = project ^. #projectConfig . #projectOutputDirectory
       extIn = case inputExt of
         FilePath.FromProjectInput x -> x
         FilePath.FromBuildProduct _ x -> x
@@ -203,8 +201,8 @@ fileExtensionRule options project (inputExt, extOut) f =
           <> FilePath.fromExt extIn
           <> FilePath.fromExt extOut
    in filePattern Shake.%> \output -> do
-        let indir = options ^. #optionsProjectDirectory
-            outdir = project ^. #projectOutputDirectory
+        let indir = project ^. #projectTopLevel . #projectDirectory
+            outdir = project ^. #projectConfig . #projectOutputDirectory
             input = FilePath.toInputPathViaInputExt indir outdir inputExt output
         f input output
 
@@ -212,21 +210,19 @@ fileExtensionRule options project (inputExt, extOut) f =
 --
 -- @since 0.5.0.0
 assetRules ::
-  -- | Compiler options.
-  Options.Options ->
   -- | Project configuration.
   Project.Project ->
   -- | The map of asset compilers.
   Asset.AssetMap ->
   -- | Generated Shake rules.
   Shake.Rules ()
-assetRules options project =
+assetRules project =
   hmFoldMapWithKey $ \ext compilers ->
     for_ (enumFrom minBound) $ \format ->
       let extIn = FilePath.FromProjectInput ext
           extOut = Asset.assetExtension format
           compiler = curry $ assetEval project (compilers format)
-       in fileExtensionRule options project (extIn, extOut) compiler
+       in fileExtensionRule project (extIn, extOut) compiler
   where
     -- HashMap.foldMapWithKey was introduced in 0.2.11
     hmFoldMapWithKey f = HashMap.foldrWithKey (\k v x -> x <> f k v) mempty
@@ -241,19 +237,19 @@ assetRules options project =
 --
 -- @since 0.5.0.0
 markdownRule ::
-  Options.Options ->
+  User.User ->
   Project.Project ->
   Project.Target ->
   CommandSafety ->
   Asset.AssetMap ->
   Shake.Rules ()
-markdownRule options project target cmdmode assets =
+markdownRule user project target cmdmode assets =
   let extIn = FilePath.FromProjectInput (FilePath.Ext "md")
       extOut = Project.targetFileExtension target
-   in fileExtensionRule options project (extIn, extOut) $ \input output -> do
+   in fileExtensionRule project (extIn, extOut) $ \input output -> do
         let compiler = Markdown.compile (Input.FromFile input)
         markdown <-
-          eval options project target cmdmode assets compiler
+          eval user project target cmdmode assets compiler
             & evaluatingStateT Eval.emptyRuntime
         writeFileLText
           output
@@ -271,60 +267,67 @@ markdownRule options project target cmdmode assets =
 --
 -- @since 0.5.0.0
 targetRule ::
-  Options.Options ->
   Project.Project ->
   Project.Target ->
   Shake.Rules ()
-targetRule options project target =
+targetRule project target =
   let extIn =
         FilePath.FromBuildProduct
           (FilePath.Ext "md")
           (Project.targetFileExtension target)
       extOut = Project.formatExtension (Project.targetFormat target)
-      eval = curry $ assetEval project compiler
-   in fileExtensionRule options project (extIn, extOut) eval
+   in fileExtensionRule project (extIn, extOut) action
   where
-    compiler :: (FilePath, FilePath) -> Asset.Asset
-    compiler = Asset.shell . toString . Project.targetCommand target
+    action :: FilePath -> FilePath -> Shake.Action ()
+    action input output = do
+      let ops =
+            [ Shake.Cwd (project ^. #projectTopLevel . #projectDirectory),
+              Shake.Shell,
+              Shake.EchoStdout False,
+              Shake.EchoStderr False
+            ]
+          cmd = Project.targetCommand target (input, output)
+      Shake.need [input]
+      Shake.command_ ops (toString cmd) []
 
 -- | All Shake rules for building an entire project.
 --
 -- @since 0.5.0.0
 rules ::
-  Options.Options ->
+  User.User ->
   Project.Project ->
   CommandSafety ->
   Asset.AssetMap ->
   Shake.Rules ()
-rules options project cmdmode assets = do
-  assetRules options project assets
+rules user project cmdmode assets = do
+  assetRules project assets
 
-  for_ (project ^. #projectInputFiles) $ \file ->
-    for_ (project ^. #projectTargets) $ \target -> do
-      let indir = options ^. #optionsProjectDirectory
-          outdir = project ^. #projectOutputDirectory
+  for_ (project ^. #projectInputs . #projectInputFiles) $ \file ->
+    for_ (project ^. #projectConfig . #projectTargets) $ \target -> do
+      let indir = project ^. #projectTopLevel . #projectDirectory
+          outdir = project ^. #projectConfig . #projectOutputDirectory
           targetE = Project.targetFileExtension target
           format = Project.formatExtension (Project.targetFormat target)
           output =
             FilePath.toOutputPath indir outdir file
               `FilePath.replaceExt` (targetE <> format)
-      markdownRule options project target cmdmode assets
-      targetRule options project target
+      markdownRule user project target cmdmode assets
+      targetRule project target
       Shake.want [output]
 
 -- | Build an Edify project.
 --
 -- @since 0.5.0.0
 main ::
-  Options.Options ->
+  User.User ->
   Project.Project ->
   CommandSafety ->
   IO ()
-main options project cmdmode = do
+main user project cmdmode = do
   let assets = Asset.assets
   (_, after) <- Shake.shakeWithDatabase
     shakeOptions
-    (rules options project cmdmode assets)
+    (rules user project cmdmode assets)
     $ \db -> do
       Shake.shakeOneShotDatabase db
       Shake.shakeRunDatabase db []
@@ -333,5 +336,5 @@ main options project cmdmode = do
     shakeOptions :: Shake.ShakeOptions
     shakeOptions =
       Shake.shakeOptions
-        { Shake.shakeFiles = project ^. #projectOutputDirectory
+        { Shake.shakeFiles = project ^. #projectConfig . #projectOutputDirectory
         }

@@ -14,12 +14,14 @@
 -- License: Apache-2.0
 module Edify.Compiler.User
   ( UserF (..),
+    User,
     resolve,
+    defaultUserConfigFile,
   )
 where
 
-import qualified Edify.Compiler.Project as Project
 import Edify.JSON
+import qualified Edify.Project.Config as Project
 import qualified System.Directory as Directory
 import System.FilePath ((</>))
 
@@ -30,9 +32,14 @@ data UserF (f :: Readiness) = User
   { -- | Directory where command fingerprints are stored.
     userCommandAllowDir :: Default f FilePath,
     -- | Default project configuration.
-    userProjectConfig :: Project.ProjectF Parsed
+    userProjectConfig :: Project.ConfigF Parsed
   }
   deriving stock (Generic)
+
+-- | FIXME: Write documentation for User
+--
+-- @since 0.5.0.0
+type User = UserF Resolved
 
 deriving via (GenericJSON (UserF Parsed)) instance ToJSON (UserF Parsed)
 
@@ -47,6 +54,14 @@ instance Semigroup (UserF Parsed) where
 
 instance Monoid (UserF Parsed) where
   mempty = User mempty mempty
+
+-- | FIXME: Write description for defaultUserConfigFile
+--
+-- @since 0.5.0.0
+defaultUserConfigFile :: MonadIO m => m FilePath
+defaultUserConfigFile =
+  liftIO (Directory.getXdgDirectory Directory.XdgConfig "edify")
+    <&> (</> "config.yml")
 
 -- | Resolve a 'UserF Parsed' value to a final 'UserF Identity' value.
 --

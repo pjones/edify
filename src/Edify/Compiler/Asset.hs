@@ -33,7 +33,7 @@ where
 import Control.Monad.Free.Church (F, MonadFree, liftF)
 import Control.Monad.Free.TH (makeFree)
 import qualified Edify.Compiler.FilePath as FilePath
-import qualified Edify.Compiler.Project as Project
+import qualified Edify.Project as Project
 import System.FilePath (takeDirectory, takeFileName, (-<.>))
 
 -- | Domain Specific Language (DSL) for compiling assets.

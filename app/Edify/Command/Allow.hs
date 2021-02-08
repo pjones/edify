@@ -19,30 +19,29 @@ module Edify.Command.Allow
   )
 where
 
+import Control.Lens ((^.))
 import qualified Edify.Compiler.Allow as Allow
-import qualified Edify.Compiler.Options as Options
-import Edify.JSON
+import qualified Edify.Compiler.User as User
 import qualified Options.Applicative as Opt
+import qualified System.Directory as Directory
 
 -- | Command line options.
 --
 -- @since 0.5.0.0
-data Flags (f :: Readiness) = Flags
-  { flagsCompilerOptions :: Options.OptionsF f,
-    flagsInputFiles :: NonEmpty FilePath
+newtype Flags = Flags
+  { flagsInputFiles :: NonEmpty FilePath
   }
 
 -- | Command description.
 --
 -- @since 0.5.0.0
-desc :: (String, Opt.Parser (Flags Parsed))
+desc :: (String, Opt.Parser Flags)
 desc = ("Authorize the use of commands in the specific files", flags)
   where
-    flags :: Opt.Parser (Flags Parsed)
+    flags :: Opt.Parser Flags
     flags =
       Flags
-        <$> Options.fromCommandLine
-        <*> ( fromList
+        <$> ( fromList
                 <$> some
                   ( Opt.strArgument $
                       mconcat
@@ -52,24 +51,10 @@ desc = ("Authorize the use of commands in the specific files", flags)
                   )
             )
 
--- | Resolve all options to their final values.
---
--- @since 0.5.0.0
-resolve :: MonadIO m => Flags Parsed -> m (Flags Resolved)
-resolve Flags {..} = do
-  compiler <- Options.resolve flagsCompilerOptions
-  pure
-    Flags
-      { flagsCompilerOptions = compiler,
-        flagsInputFiles = flagsInputFiles
-      }
-
 -- | Main entry point.
 --
 -- @since 0.5.0.0
-main :: Flags Parsed -> IO ()
-main =
-  resolve >=> \Flags {..} ->
-    Allow.main
-      flagsCompilerOptions
-      flagsInputFiles
+main :: User.User -> Flags -> IO ()
+main user Flags {..} =
+  traverse Directory.makeAbsolute flagsInputFiles
+    >>= Allow.main (user ^. #userCommandAllowDir)

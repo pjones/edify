@@ -20,7 +20,8 @@ where
 import qualified Edify.Command.Allow as Allow
 import qualified Edify.Command.Audit as Audit
 import qualified Edify.Command.Build as Build
-import Edify.JSON
+import qualified Edify.Command.Generate as Generate
+import qualified Edify.Compiler.User as User
 import qualified Options.Applicative as Options
 
 -- import Data.Version (showVersion)
@@ -28,9 +29,10 @@ import qualified Options.Applicative as Options
 
 -- | Type for the command line parser.
 data Command
-  = CmdBuild (Build.Flags Parsed)
-  | CmdAudit (Audit.Flags Parsed)
-  | CmdAllow (Allow.Flags Parsed)
+  = CmdBuild Build.Flags
+  | CmdAudit Audit.Flags
+  | CmdAllow Allow.Flags
+  | CmdGenerate Generate.Flags
 
 -- | Command line parser.
 commands :: Options.Parser Command
@@ -39,7 +41,8 @@ commands =
     ( mconcat
         [ mkcmd "build" CmdBuild Build.desc,
           mkcmd "audit" CmdAudit Audit.desc,
-          mkcmd "allow" CmdAllow Allow.desc
+          mkcmd "allow" CmdAllow Allow.desc,
+          mkcmd "generate" CmdGenerate Generate.desc
         ]
     )
   where
@@ -61,10 +64,12 @@ commands =
 --         <> help "Print version number and exit"
 
 main :: IO ()
-main =
+main = do
+  user <- User.resolve mempty -- FIXME: Load this from disk
   Options.execParser opts >>= \case
-    CmdBuild flags -> Build.main flags
-    CmdAudit flags -> Audit.main flags
-    CmdAllow flags -> Allow.main flags
+    CmdBuild flags -> Build.main user flags
+    CmdAudit flags -> Audit.main user flags
+    CmdAllow flags -> Allow.main user flags
+    CmdGenerate flags -> Generate.main user flags
   where
     opts = Options.info (Options.helper <*> commands) mempty

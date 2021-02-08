@@ -13,7 +13,8 @@
 --
 -- License: Apache-2.0
 module Edify.Compiler.FilePath
-  ( makeAbsoluteTo,
+  ( makeAbsoluteToDir,
+    makeAbsoluteToFile,
 
     -- * Mapping Output Files to Input Files
     InputExt (..),
@@ -30,6 +31,7 @@ module Edify.Compiler.FilePath
 
     -- * Re-exports
     (</>),
+    isDrive,
     takeDirectory,
     takeFileName,
     dropExtension,
@@ -40,7 +42,7 @@ import qualified Data.ByteString.Base16 as Base16
 import Data.Generics.Labels ()
 import qualified Data.List as List
 import qualified System.Directory as Directory
-import System.FilePath (dropExtension, takeDirectory, takeFileName, (</>))
+import System.FilePath (dropExtension, isDrive, takeDirectory, takeFileName, (</>))
 import qualified System.FilePath as FilePath
 
 -- | File extension.
@@ -81,11 +83,31 @@ addExt file = (file FilePath.<.>) . fromExt
 replaceExt :: FilePath -> Ext -> FilePath
 replaceExt file = (file FilePath.-<.>) . fromExt
 
+-- | Make a file absolute using the specified as context.
+--
+-- @since 0.5.0.0
+makeAbsoluteToDir ::
+  MonadIO m =>
+  -- | The existing absolute path of a directory to compare to.
+  FilePath ->
+  -- | The relative path to make absolute.
+  FilePath ->
+  -- | The resolved file path.
+  m FilePath
+makeAbsoluteToDir dir file
+  | FilePath.isAbsolute file =
+    liftIO (Directory.canonicalizePath file)
+  | otherwise =
+    FilePath.normalise dir
+      & (</> FilePath.normalise file)
+      & Directory.canonicalizePath
+      & liftIO
+
 -- | Make a 'FilePath' absolute when it is relative to another
 -- 'FilePath'.
 --
 -- @since 0.5.0.0
-makeAbsoluteTo ::
+makeAbsoluteToFile ::
   MonadIO m =>
   -- | The existing absolute path of a file to compare to.
   FilePath ->
@@ -93,15 +115,8 @@ makeAbsoluteTo ::
   FilePath ->
   -- | The resolved file path.
   m FilePath
-makeAbsoluteTo context file
-  | FilePath.isAbsolute file =
-    liftIO (Directory.canonicalizePath file)
-  | otherwise =
-    FilePath.normalise context
-      & FilePath.takeDirectory
-      & (</> FilePath.normalise file)
-      & Directory.canonicalizePath
-      & liftIO
+makeAbsoluteToFile context =
+  makeAbsoluteToDir (FilePath.takeDirectory context)
 
 -- | Re-parent a file path so it under the output directory.
 --

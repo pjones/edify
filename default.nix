@@ -10,8 +10,7 @@ nix-hs {
   compiler = ghc;
 
   overrides = lib: self: super: {
-    byline =
-      super.callCabal2nix "byline" sources.byline { };
+    aeson = super.aeson_1_5_2_0;
 
     haddock-library =
       lib.doJailbreak super.haddock-library;

@@ -22,7 +22,6 @@ module Edify.Format.Markdown
   )
 where
 
-import qualified Byline as B
 import qualified Data.Attoparsec.Text.Lazy as Atto
 import qualified Data.Text.Lazy.Builder as LTB
 import Edify.JSON
@@ -37,15 +36,6 @@ data Error
   = ParseError String
   | NarrowTokenMissingError Text
   deriving (Generic, Show)
-
-instance B.ToStylizedText Error where
-  toStylizedText = \case
-    ParseError err ->
-      B.text "markdown parsing error: "
-        <> (B.fg B.red <> fromString err)
-    NarrowTokenMissingError t ->
-      B.text "I didn't see a Markdown heading with ID "
-        <> (B.fg B.red <> B.text t)
 
 -- | A single chunk of Markdown.
 --

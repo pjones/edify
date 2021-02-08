@@ -25,7 +25,6 @@ module Edify.Text.Narrow
   )
 where
 
-import qualified Byline as B
 import Data.Aeson (FromJSON, ToJSON)
 import qualified Data.Attoparsec.Text as Atto
 import Data.Char (isSpace)
@@ -50,13 +49,6 @@ newtype Token = Token
 -- @since 0.5.0.0
 newtype Error = Error String
   deriving (Show, Eq)
-
-instance B.ToStylizedText Error where
-  toStylizedText (Error s) =
-    mconcat
-      [ "unable to narrow to token: ",
-        B.text (toText s) <> B.fg B.magenta
-      ]
 
 -- | The default characters used to mark a region of text for
 -- narrowing.

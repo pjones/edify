@@ -19,11 +19,13 @@ module Edify.Compiler.Allow
   )
 where
 
-import Control.Lens ((^.))
+import Data.Foldable (foldrM)
 import Data.Functor.Foldable (cata)
+import qualified Data.List.NonEmpty as NonEmpty
 import qualified Edify.Compiler.Audit as Audit
+import qualified Edify.Compiler.FilePath as FilePath
 import qualified Edify.Compiler.Fingerprint as Fingerprint
-import qualified Edify.Compiler.Options as Options
+import qualified Edify.Project as Project
 
 -- | Generate allow files for Markdown documents.
 --
@@ -31,20 +33,19 @@ import qualified Edify.Compiler.Options as Options
 allowMarkdown ::
   forall m.
   MonadIO m =>
-  Options.Options ->
+  -- | Directory where allow files can be written.
+  FilePath ->
+  -- | List of files to allow.
   NonEmpty FilePath ->
+  -- | Allow action.
   m ()
-allowMarkdown options files =
-  Audit.audit options files >>= \case
+allowMarkdown dir files =
+  Audit.audit dir files >>= \case
     Left e -> die (show e) -- FIXME: proper error display
     Right audit -> do
       commands audit
         & fingerprint
-        & Fingerprint.write
-          ( options
-              ^. #optionsUserConfig
-                . #userCommandAllowDir
-          )
+        & Fingerprint.write dir
   where
     commands :: Audit.Audit -> [(FilePath, Text)]
     commands = cata $ \case
@@ -57,15 +58,47 @@ allowMarkdown options files =
     fingerprint :: [(FilePath, Text)] -> Fingerprint.Cache Fingerprint.Commands
     fingerprint = sortNub >>> foldr (uncurry Fingerprint.cache) mempty
 
+-- | Generate allow files for JSON/YAML configuration files.
+--
+-- @since 0.5.0.0
+allowConfig ::
+  forall m.
+  MonadIO m =>
+  -- | Directory where allow files can be written.
+  FilePath ->
+  -- | List of files to allow.
+  NonEmpty FilePath ->
+  -- | Allow action.
+  m ()
+allowConfig dir files = do
+  cache <- foldrM fingerprint mempty files
+  Fingerprint.write dir cache
+  where
+    fingerprint ::
+      FilePath ->
+      Fingerprint.Cache Fingerprint.Self ->
+      m (Fingerprint.Cache Fingerprint.Self)
+    fingerprint file cache = do
+      cache' <- Fingerprint.self file
+      pure (cache <> cache')
+
 -- | Generate fingerprint files for the given inputs.
 --
 -- @since 0.5.0.0
 main ::
   MonadIO m =>
-  -- | Compiler options.
-  Options.Options ->
+  -- | Directory where allow files can be written.
+  FilePath ->
   -- | The files to fingerprint.
   NonEmpty FilePath ->
   -- | IO actions that create the files.
   m ()
-main = allowMarkdown
+main dir files = do
+  let (configs, markdowns) = NonEmpty.partition isConfigFile files
+  maybe pass (allowConfig dir) $ nonEmpty configs
+  maybe pass (allowMarkdown dir) $ nonEmpty markdowns
+  where
+    isConfigFile :: FilePath -> Bool
+    isConfigFile =
+      FilePath.takeFileName
+        >>> (`elem` Project.projectConfigFiles)
