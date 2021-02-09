@@ -300,10 +300,15 @@ rules ::
   Asset.AssetMap ->
   Shake.Rules ()
 rules user project cmdmode assets = do
+  -- FIXME: All generated rules should depend on the project
+  -- configuration file!
   assetRules project assets
 
-  for_ (project ^. #projectInputs . #projectInputFiles) $ \file ->
-    for_ (project ^. #projectConfig . #projectTargets) $ \target -> do
+  for_ (project ^. #projectConfig . #projectTargets) $ \target -> do
+    markdownRule user project target cmdmode assets
+    targetRule project target
+
+    for_ (project ^. #projectInputs . #projectInputFiles) $ \file ->
       let indir = project ^. #projectTopLevel . #projectDirectory
           outdir = project ^. #projectConfig . #projectOutputDirectory
           targetE = Project.targetFileExtension target
@@ -311,9 +316,7 @@ rules user project cmdmode assets = do
           output =
             FilePath.toOutputPath indir outdir file
               `FilePath.replaceExt` (targetE <> format)
-      markdownRule user project target cmdmode assets
-      targetRule project target
-      Shake.want [output]
+       in Shake.want [output]
 
 -- | Build an Edify project.
 --
