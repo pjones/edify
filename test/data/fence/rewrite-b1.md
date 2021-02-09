@@ -7,4 +7,10 @@ This div should be left alone.
   Neat.
   ```
   ````
+
+  <div id=plain class="one two" add-fences=yes rewrite=no>
+  ```
+  Sweet.
+  ```
+  </div>
 :::

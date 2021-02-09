@@ -39,6 +39,12 @@ module Edify.Markdown.Attributes
     toCssIdent,
     cssIdentP,
     cssIdentT,
+
+    -- * Key-Value Pairs
+    keyValueP,
+    keyValueT,
+    kvToAttrs,
+    kvFromAttrs,
   )
 where
 
@@ -46,6 +52,7 @@ import Control.Lens ((%~), (.~), (?~), (^.))
 import qualified Control.Lens as Lens
 import qualified Data.Aeson as Aeson
 import qualified Data.Attoparsec.Text.Lazy as Atto
+import qualified Data.CaseInsensitive as CaseInsensitive
 import Data.Char (isAlpha, isAlphaNum, isAscii, isHexDigit, isLetter, isPrint, isSpace)
 import Data.Generics.Labels ()
 import qualified Data.HashMap.Strict as HashMap
@@ -69,7 +76,8 @@ newtype Name = Name
       Eq,
       ToJSON,
       Aeson.ToJSONKey,
-      Hashable
+      Hashable,
+      CaseInsensitive.FoldCase
     )
     via Text
 
@@ -88,6 +96,14 @@ toName name = do
   guard (isAttrNameFirstChar h && Text.all isAttrNameOtherChar t)
   pure (Name name)
 
+-- | Normalize a name by force it to lowercase.
+--
+-- @since 0.5.0.0
+normalizeName :: Name -> Name
+normalizeName =
+  CaseInsensitive.mk
+    >>> CaseInsensitive.foldedCase
+
 -- | An attribute value according to HTML.
 --
 -- @since 0.5.0.0
@@ -101,7 +117,8 @@ newtype Value = Value Text
       Semigroup,
       Monoid,
       ToJSON,
-      FromJSON
+      FromJSON,
+      CaseInsensitive.FoldCase
     )
     via Text
 
@@ -117,7 +134,15 @@ toValue = Value
 newtype CssIdent = CssIdent
   {getCssIdent :: Text}
   deriving stock (Generic)
-  deriving (Show, Eq, ToText, ToJSON, FromJSON) via Text
+  deriving
+    ( Show,
+      Eq,
+      ToText,
+      ToJSON,
+      FromJSON,
+      CaseInsensitive.FoldCase
+    )
+    via Text
 
 -- | Encode the given 'Text' as a CSS class name.
 --
@@ -218,11 +243,50 @@ attributesP =
         *> cssIdentP
         <&> AttrClass
     kvP :: Atto.Parser Attr
-    kvP =
-      let sep = Atto.skipSpace *> Atto.char '=' <* Atto.skipSpace
-       in AttrKeyVal
-            <$> (nameP <* sep)
-            <*> valueP
+    kvP = uncurry AttrKeyVal <$> keyValueP
+
+-- | Parse key-value pairs a la HTML.
+--
+-- @since 0.5.0.0
+keyValueP :: Atto.Parser (Name, Value)
+keyValueP =
+  let sep = Atto.skipSpace *> Atto.char '=' <* Atto.skipSpace
+   in (,)
+        <$> (Atto.skipSpace *> nameP)
+        <*> ((sep *> valueP) <|> pure mempty)
+
+-- | Construct an 'Attributes' value from a list of key-value pairs.
+--
+-- @since 0.5.0.0
+kvToAttrs :: [(Name, Value)] -> Attributes
+kvToAttrs pairs =
+  let hmap = fromList (map (first normalizeName) pairs)
+      attrs = mempty & #attrPairs .~ hmap
+   in attrs
+        & #attrID .~ (attrs ^. at "id" >>= toName)
+        & at "id" .~ Nothing
+        & #attrClasses .~ (attrs ^. at "class" & maybe [] classes)
+        & at "class" .~ Nothing
+  where
+    classes :: Text -> [CssIdent]
+    classes = Text.words >>> mapMaybe toCssIdent
+
+-- | Convert an 'Attributes' value into a list of key-value pairs.
+--
+-- @since 0.5.0.0
+kvFromAttrs :: Attributes -> [(Name, Value)]
+kvFromAttrs Attributes {..} =
+  maybe [] (one . fromID) attrID
+    <> maybe [] one (fromClasses attrClasses)
+    <> HashMap.toList attrPairs
+  where
+    fromID :: Name -> (Name, Value)
+    fromID (Name i) = (Name "id", toValue i)
+
+    fromClasses :: [CssIdent] -> Maybe (Name, Value)
+    fromClasses = \case
+      [] -> Nothing
+      xs -> Just (Name "class", toValue (Text.unwords $ map toText xs))
 
 -- | Encode an 'Attributes' value as a 'LTB.Builder'.
 --
@@ -231,27 +295,49 @@ attributesT :: Attributes -> LTB.Builder
 attributesT attrs =
   mconcat
     [ LTB.singleton '{',
-      LTB.fromLazyText (toAttrs attrs),
+      mconcat (intersperse (LTB.singleton ' ') $ go attrs),
       LTB.singleton '}'
     ]
   where
-    toAttrs :: Attributes -> LText
-    toAttrs Attributes {..} =
-      LText.intercalate
-        " "
-        ( maybe mempty (idT >>> one) attrID
-            <> map classT attrClasses
-            <> HashMap.foldrWithKey kvT mempty attrPairs
-        )
+    go :: Attributes -> [LTB.Builder]
+    go Attributes {..} =
+      catMaybes
+        [ idT <$> attrID,
+          classesT attrClasses,
+          toAttrs attrPairs
+        ]
 
-    idT :: Name -> LText
-    idT = nameT >>> ("#" <>)
+    toAttrs :: HashMap Name Value -> Maybe LTB.Builder
+    toAttrs =
+      HashMap.toList >>> \case
+        [] -> Nothing
+        xs -> Just (keyValueT xs)
 
-    classT :: CssIdent -> LText
-    classT = cssIdentT >>> ("." <>)
+    idT :: Name -> LTB.Builder
+    idT = nameT >>> ("#" <>) >>> LTB.fromLazyText
 
-    kvT :: Name -> Value -> [LText] -> [LText]
-    kvT k v ts = (toLazy (getAttrName k) <> "=" <> valueT v) : ts
+    classesT :: [CssIdent] -> Maybe LTB.Builder
+    classesT = \case
+      [] -> Nothing
+      xs ->
+        map (cssIdentT >>> ("." <>) >>> LTB.fromLazyText) xs
+          & intersperse (LTB.singleton ' ')
+          & mconcat
+          & Just
+
+-- | Render key-value pairs as text.
+--
+-- @since 0.5.0.0
+keyValueT :: [(Name, Value)] -> LTB.Builder
+keyValueT =
+  map go
+    >>> intersperse (LTB.singleton ' ')
+    >>> mconcat
+  where
+    go :: (Name, Value) -> LTB.Builder
+    go (k, v)
+      | toText v == "" = LTB.fromText (toText k)
+      | otherwise = LTB.fromText (toText k) <> "=" <> LTB.fromLazyText (valueT v)
 
 -- | Like 'attributesT' except the caller has more control over how
 -- the attribute set will be encoded.
@@ -307,7 +393,7 @@ nameP :: Atto.Parser Name
 nameP = do
   c <- Atto.satisfy isAttrNameFirstChar
   cs <- many (Atto.satisfy isAttrNameOtherChar)
-  pure (Name $ toText (c : cs))
+  pure (normalizeName $ Name $ toText (c : cs))
 
 -- | Encode an 'Name' value as 'LText'.
 --

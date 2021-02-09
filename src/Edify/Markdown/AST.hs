@@ -76,7 +76,8 @@ data Block
   | CommentBlock Comment.Comment
   | IncludeBlock Include
   | ParaBlock [Inline]
-  | BlankLine Text
+  | BlankLine (Maybe Text)
+  | EmptyBlock
   deriving stock (Generic)
   deriving (ToJSON, FromJSON) via GenericJSON Block
 
@@ -115,7 +116,7 @@ blockP =
           ]
   where
     blankP :: Atto.Parser Block
-    blankP = BlankLine <$> endOfLineP
+    blankP = BlankLine . Just <$> endOfLineP
 
     headingP :: Atto.Parser Block
     headingP = HeadingBlock <$> Heading.headingP
@@ -226,7 +227,9 @@ markdownT = unAST >>> foldMap go
       CommentBlock cmt -> Comment.commentT cmt
       IncludeBlock inc -> Include.includeT inc
       ParaBlock ins -> inlineT ins
-      BlankLine t -> LTB.fromText t
+      -- FIXME: What should the default blank line be?
+      BlankLine t -> LTB.fromText (fromMaybe "\n" t)
+      EmptyBlock -> mempty
 
 -- | Convert a list of 'Inline' values into text.
 --
@@ -295,6 +298,7 @@ fencesRewrite ::
   f (Either Fence.RewriteError Block)
 fencesRewrite tabstop f = \case
   FenceBlock fb ->
-    FenceBlock <<$>> Fence.rewrite tabstop inlineT inlineP f fb
+    Fence.rewrite tabstop inlineT inlineP f fb
+      <&> second (maybe EmptyBlock FenceBlock)
   other ->
     pure (Right other)

@@ -30,7 +30,7 @@ import qualified Edify.Input as Input
 import qualified Edify.Markdown.AST as AST
 import Edify.Markdown.Attributes (Attributes)
 import qualified Edify.Markdown.Attributes as Attrs
-import Edify.Markdown.Fence (Rewrite)
+import Edify.Markdown.Fence (Rewrite (..))
 import qualified Edify.Markdown.Include as Include
 
 -- | A compiled Markdown document.
@@ -114,7 +114,7 @@ rewriteInsert src
   | Just file <- src ^. _1 . Attrs.at "insert" =
     insert (toString file)
   | otherwise =
-    pure mempty
+    pure (Rewrite Nothing Nothing)
   where
     insert :: FilePath -> Compiler Rewrite
     insert file = do
@@ -127,19 +127,20 @@ rewriteInsert src
             let format = Format.fromFileExtension file
              in Format.narrow format (Format.Token token) text
                   & either (C.abort . C.FormatError input) pure
-        mempty
-          & #rewriteAttrs
-            ?~ ( src ^. _1
-                   & Attrs.at "token" .~ Nothing
-                   & Attrs.at "insert" .~ Nothing
-                   & Attrs.at "inserted" ?~ toText file
-               )
-          & #rewriteBody ?~ toStrict body
-          & pure
+        pure
+          Rewrite
+            { rewriteAttrs =
+                Just
+                  ( src ^. _1
+                      & Attrs.at "token" .~ Nothing
+                      & Attrs.at "insert" .~ Nothing
+                      & Attrs.at "inserted" ?~ toText file
+                  ),
+              rewriteBody = Just (toStrict body)
+            }
 
 -- | Generate a Markdown fence rewrite request if the given attributes
 -- are requesting the execution of a shell command.
---
 --
 -- NOTE: For security conscious readers: This code doesn't actually
 -- execute anything.  It uses the 'C.exec' DSL feature which handles the
@@ -153,16 +154,18 @@ rewriteExec ::
   Compiler Rewrite
 rewriteExec src
   | Just command <- src ^. _1 . Attrs.at "exec" = go command
-  | otherwise = pure mempty
+  | otherwise = pure (Rewrite Nothing Nothing)
   where
     go :: Text -> Compiler Rewrite
     go command = do
       output <- C.exec (src & _1 .~ command)
-      mempty
-        & #rewriteAttrs
-          ?~ ( src ^. _1
-                 & Attrs.at "exec" .~ Nothing
-                 & Attrs.at "execed" ?~ command
-             )
-        & #rewriteBody ?~ output
-        & pure
+      pure
+        Rewrite
+          { rewriteAttrs =
+              Just
+                ( src ^. _1
+                    & Attrs.at "exec" .~ Nothing
+                    & Attrs.at "execed" ?~ command
+                ),
+            rewriteBody = Just output
+          }

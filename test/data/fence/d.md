@@ -1,3 +1,3 @@
-``` {.haskell exec="ghci --help" foo=""}
+``` {.haskell exec="ghci --help" foo}
 putStrLn "Hello"
 ```

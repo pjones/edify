@@ -83,46 +83,51 @@ testRewrite = do
                     )
                 )
           )
-  key <- Attrs.toName "rewrite" & maybe (fail "impossible") pure
-  pure $ testGroup "Rewrite" (map (go key) files)
+  pure $ testGroup "Rewrite" (map go files)
   where
     ts :: Indent.Tabstop
     ts = Indent.defaultTabstop
 
-    go :: Attrs.Name -> (FilePath, FilePath) -> TestTree
-    go key (fileIn, fileCmp) =
+    go :: (FilePath, FilePath) -> TestTree
+    go (fileIn, fileCmp) =
       goldenVsString
         fileCmp
         fileCmp
         ( readFileLText fileIn
             >>= parseOnly (Fence.fenceP wholelineP)
-            <&> ( Fence.rewrite ts LTB.fromText wholelineP (rewrite key)
+            <&> ( Fence.rewrite ts LTB.fromText wholelineP rewrite
                     >>> runIdentity
                     >>> either
                       ( show
                           >>> ("FAIL: " <>)
                           >>> (encodeUtf8 :: Text -> LByteString)
                       )
-                      ( Fence.fenceT LTB.fromText
-                          >>> LTB.toLazyText
-                          >>> encodeUtf8
+                      ( maybe
+                          mempty
+                          ( Fence.fenceT LTB.fromText
+                              >>> LTB.toLazyText
+                              >>> encodeUtf8
+                          )
                       )
                 )
         )
 
     rewrite ::
-      Attrs.Name ->
       (Attrs.Attributes, Text) ->
       Identity Fence.Rewrite
-    rewrite key (attrs, text)
-      | attrs ^. #attrPairs . at key == Just "yes" =
-        mempty
-          & #rewriteAttrs ?~ (attrs & #attrPairs . at key ?~ "no")
-          & #rewriteBody
-            ?~ ( Text.replace "Hello" "Rewritten" text
-                   & addFences attrs
-               )
-          & pure
+    rewrite (attrs, text)
+      | attrs ^. Attrs.at "rewrite" == Just "yes" =
+        pure
+          Fence.Rewrite
+            { rewriteAttrs = Just (attrs & Attrs.at "rewrite" ?~ "no"),
+              rewriteBody =
+                Just
+                  ( Text.replace "Hello" "Rewritten" text
+                      & addFences attrs
+                  )
+            }
+      | attrs ^. Attrs.at "discard" == Just "yes" =
+        pure Fence.Discard
       | otherwise =
         pure (Fence.Rewrite Nothing Nothing)
 

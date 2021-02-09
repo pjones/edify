@@ -33,6 +33,7 @@ where
 
 import Control.Lens ((.~), (^.), _2)
 import qualified Data.Attoparsec.Text as Atto
+import qualified Data.Char as Char
 import Data.Functor.Foldable (Fix (..), cata, embed, project)
 import Data.Generics.Labels ()
 import Data.Semigroup (Max (..))
@@ -60,6 +61,17 @@ data Props = Props
   deriving stock (Generic, Show, Eq)
   deriving (ToJSON, FromJSON) via GenericJSON Props
 
+-- | Track what type of DIV was parsed.
+--
+-- @since 0.5.0.0
+data DivStyle
+  = -- | Newer fenced DIVs.
+    FenceStyleDiv
+  | -- | Traditional HTML DIVs.
+    ElementStyleDiv
+  deriving stock (Generic, Show, Eq)
+  deriving (ToJSON, FromJSON) via GenericJSON DivStyle
+
 -- | An implicit recursive fence structure.
 --
 -- @since 0.5.0.0
@@ -72,7 +84,7 @@ data FenceF t r
     CodeFence Char Props Text
   | -- | Div fences.  Their bodies are made up of the other
     -- constructors.
-    DivFence Props [r]
+    DivFence DivStyle Props [r]
   deriving stock (Generic, Show, Eq, Functor)
   deriving (ToJSON, FromJSON) via GenericJSON (FenceF t r)
 
@@ -95,11 +107,11 @@ deriving via (RecursiveJSON (Fence t)) instance FromJSON t => FromJSON (Fence t)
 --
 -- @since 0.5.0.0
 fenceP :: Semigroup t => Atto.Parser t -> Atto.Parser (Fence t)
-fenceP p = (divP p <|> codeP) <&> concatAdjacentText
+fenceP p = (divFenceP p <|> divElementP p <|> codeP) <&> concatAdjacentText
 
--- | Div blocks.
-divP :: Atto.Parser t -> Atto.Parser (Fence t)
-divP parser = (Atto.<?> "fenced div block") $ do
+-- | Div blocks using the fence style.
+divFenceP :: Atto.Parser t -> Atto.Parser (Fence t)
+divFenceP parser = (Atto.<?> "fenced div block") $ do
   (indent, colons, char) <- fenceCharsP (== ':')
   attrs <- barewordP <|> Attrs.attributesP
   lineEnd <-
@@ -108,12 +120,7 @@ divP parser = (Atto.<?> "fenced div block") $ do
       *> endOfLineP
   body <-
     Atto.manyTill
-      ( Atto.choice
-          [ divP parser,
-            codeP,
-            embed . FenceBody <$> parser
-          ]
-      )
+      (divBodyP parser)
       (closingP char indent 3)
   let props =
         Props
@@ -122,7 +129,39 @@ divP parser = (Atto.<?> "fenced div block") $ do
             fenceLineEnd = lineEnd,
             fenceAttrs = attrs
           }
-  pure $ embed (DivFence props body)
+  pure $ embed (DivFence FenceStyleDiv props body)
+
+-- | Div blocks using the HTML element style.
+divElementP :: Atto.Parser t -> Atto.Parser (Fence t)
+divElementP parser = (Atto.<?> "HTML div block") $ do
+  indent <- many (Atto.satisfy Atto.isHorizontalSpace) <&> length
+  _ <- Atto.string "<div"
+  attrs <-
+    Atto.choice
+      [ Atto.satisfy Char.isSpace *> (many Attrs.keyValueP <&> Attrs.kvToAttrs),
+        pure mempty
+      ]
+  lineEnd <- Atto.char '>' *> (endOfLineP <|> pure "\n")
+  body <- Atto.manyTill (divBodyP parser) (skipHorzSpace *> Atto.string "</div>")
+  void endOfLineP <|> pass
+  let props =
+        Props
+          { fenceIndent = indent,
+            fenceCount = 0,
+            fenceLineEnd = lineEnd,
+            fenceAttrs = attrs
+          }
+  pure $ embed (DivFence ElementStyleDiv props body)
+
+-- | Parse the body of a DIV.
+divBodyP :: Atto.Parser t -> Atto.Parser (Fence t)
+divBodyP parser =
+  Atto.choice
+    [ divFenceP parser,
+      divElementP parser,
+      codeP,
+      embed . FenceBody <$> parser
+    ]
 
 -- | Fenced code blocks.
 codeP :: Atto.Parser (Fence t)
@@ -209,9 +248,25 @@ fenceT encoder = cata go
         let spc = (LTB.singleton ' ' <>)
             attrs = Attrs.attributesShortcutT id (const mempty) spc fenceAttrs
          in format char props attrs (LTB.fromText body)
-      DivFence props@Props {fenceAttrs} body ->
+      DivFence FenceStyleDiv props@Props {fenceAttrs} body ->
         let attrs = Attrs.attributesShortcutT id id id fenceAttrs
          in format ':' props (LTB.singleton ' ' <> attrs) (mconcat body)
+      DivFence ElementStyleDiv Props {..} body ->
+        mconcat
+          [ replicate fenceIndent (LTB.singleton ' ') & mconcat,
+            "<div",
+            if fenceAttrs == mempty
+              then mempty
+              else
+                LTB.singleton ' '
+                  <> Attrs.keyValueT (Attrs.kvFromAttrs fenceAttrs),
+            LTB.singleton '>',
+            LTB.fromText fenceLineEnd,
+            mconcat body,
+            replicate fenceIndent (LTB.singleton ' ') & mconcat,
+            "</div>",
+            LTB.fromText fenceLineEnd
+          ]
 
     format ::
       -- | Fence character.
@@ -255,8 +310,8 @@ concatAdjacentText = cata go
       embed . \case
         fence@FenceBody {} -> fence
         fence@CodeFence {} -> fence
-        DivFence props body ->
-          DivFence props $
+        DivFence style props body ->
+          DivFence style props $
             map embed $
               case foldr (accum . project) (Nothing, []) body of
                 (Just t, fs) -> FenceBody t : fs
@@ -306,7 +361,7 @@ bodies f = cata go
       fmap embed . \case
         FenceBody b -> FenceBody <$> f b
         CodeFence c p b -> pure (CodeFence c p b)
-        DivFence p b -> DivFence p <$> sequenceA b
+        DivFence style p b -> DivFence style p <$> sequenceA b
 
 -- | A traversal over the attributes for each fence in the recursive
 -- fence structure.
@@ -332,8 +387,8 @@ attrs f = cata go
           CodeFence chr
             <$> #fenceAttrs f props
             <*> pure body
-        DivFence props body ->
-          DivFence
+        DivFence style props body ->
+          DivFence style
             <$> #fenceAttrs f props
             <*> sequenceA body
 
@@ -341,19 +396,25 @@ attrs f = cata go
 -- recursive fence structure.
 --
 -- @since 0.5.0.0
-data Rewrite = Rewrite
-  { -- | When 'Just', update fence attributes.
-    rewriteAttrs :: Maybe Attrs.Attributes,
-    -- | When 'Just', replace the fence's body.  If there are fences
-    -- nested under this fence then they will *not* be preserved.
-    rewriteBody :: Maybe Text
-  }
+data Rewrite
+  = -- | Rewrite parts of a fence.
+    Rewrite
+      { -- | When 'Just', update fence attributes.
+        rewriteAttrs :: Maybe Attrs.Attributes,
+        -- | When 'Just', replace the fence's body.  If there are fences
+        -- nested under this fence then they will *not* be preserved.
+        rewriteBody :: Maybe Text
+      }
+  | -- | Completely remove this fence block.
+    Discard
   deriving stock (Generic, Show, Eq)
   deriving (ToJSON, FromJSON) via GenericJSON Rewrite
 
 instance Semigroup Rewrite where
   (<>) (Rewrite x1 y1) (Rewrite x2 y2) =
     Rewrite (x1 <|> x2) (y1 <|> y2)
+  (<>) Discard _other = Discard
+  (<>) _other Discard = Discard
 
 instance Monoid Rewrite where
   mempty = Rewrite Nothing Nothing
@@ -374,8 +435,14 @@ data RewriteError = RewriteError
 
 -- | Helper type mostly to reduce keyboard typing.
 --
+-- The result of performing a rewrite is either:
+--
+--   * @Left@: an error occurred
+--   * @Right Nothing@: Successful rewrite, but fence was discarded.
+--   * @Right Just@: Successful rewrite with new fence.
+--
 -- @since 0.5.0.0
-type Rewritten t = Either RewriteError (Fence t)
+type Rewritten t = Either RewriteError (Maybe (Fence t))
 
 -- | A traversal that can rewrite portions of the recursive fence
 -- structure.
@@ -402,54 +469,55 @@ rewrite tabstop encode parser f = cata go
   where
     go :: FenceF t (f (Rewritten t)) -> f (Rewritten t)
     go = \case
-      FenceBody b -> pure (Right $ embed (FenceBody b))
+      FenceBody b -> pure (Right $ Just $ embed (FenceBody b))
       CodeFence char props body -> do
-        Rewrite {..} <-
-          f
-            ( fenceAttrs props,
-              Indent.unindent tabstop body
-            )
-        case rewriteBody of
-          Nothing ->
-            CodeFence char (attrs rewriteAttrs props) body
-              & embed
-              & Right
-              & pure
-          Just b ->
-            fixupCodeBody tabstop char (attrs rewriteAttrs props) b
-              & Right
-              & pure
-      DivFence props body ->
+        f (fenceAttrs props, Indent.unindent tabstop body) >>= \case
+          Rewrite {..} ->
+            case rewriteBody of
+              Nothing ->
+                CodeFence char (attrs rewriteAttrs props) body
+                  & embed
+                  & Just
+                  & Right
+                  & pure
+              Just b ->
+                fixupCodeBody tabstop char (attrs rewriteAttrs props) b
+                  & Just
+                  & Right
+                  & pure
+          Discard ->
+            pure (Right Nothing)
+      DivFence style props body ->
         sequenceA body <&> sequenceA
           >>= either
             (pure . Left)
-            ( \bodies -> do
+            ( catMaybes >>> \bodies -> do
                 let text =
                       foldMap (fenceT encode) bodies
                         & LTB.toLazyText
                         & toStrict
                     rendered =
-                      DivFence props [embed $ FenceBody text]
+                      DivFence style props [embed $ FenceBody text]
                         & embed
                         & fenceT LTB.fromText
                         & LTB.toLazyText
                         & toStrict
-                request@Rewrite {..} <-
-                  f
-                    ( fenceAttrs props,
-                      Indent.unindent tabstop text
-                    )
-                case rewriteBody of
-                  Nothing ->
-                    DivFence (attrs rewriteAttrs props) bodies
-                      & embed
-                      & Right
-                      & pure
-                  Just b ->
-                    Indent.indent (fenceIndent props) tabstop b
-                      & parse (attrs rewriteAttrs props)
-                      & first (RewriteError rendered request)
-                      & pure
+                f (fenceAttrs props, Indent.unindent tabstop text) >>= \case
+                  request@Rewrite {..} ->
+                    case rewriteBody of
+                      Nothing ->
+                        DivFence style (attrs rewriteAttrs props) bodies
+                          & embed
+                          & Just
+                          & Right
+                          & pure
+                      Just b ->
+                        Indent.indent (fenceIndent props) tabstop b
+                          & parse style (attrs rewriteAttrs props)
+                          & bimap (RewriteError rendered request) Just
+                          & pure
+                  Discard ->
+                    pure (Right Nothing)
             )
 
     -- Optionally update the attributes inside the given 'Props'.
@@ -459,17 +527,11 @@ rewrite tabstop encode parser f = cata go
       Just a -> #fenceAttrs .~ a
 
     -- Parse the body of a div fence and reconstruct it.
-    parse :: Props -> Text -> Either String (Fence t)
-    parse props body =
-      let p =
-            Atto.many1 $
-              Atto.choice
-                [ divP parser,
-                  codeP,
-                  embed . FenceBody <$> parser
-                ]
+    parse :: DivStyle -> Props -> Text -> Either String (Fence t)
+    parse style props body =
+      let p = Atto.many1 (divBodyP parser)
        in Atto.parseOnly (p <* Atto.endOfInput) body
-            <&> (DivFence props >>> embed >>> concatAdjacentText)
+            <&> (DivFence style props >>> embed >>> concatAdjacentText)
 
 -- | Ensure the body of a fenced code block is well formed.
 -- Specifically, if the body contains fence characters, force the fence
@@ -491,7 +553,7 @@ fixupCodeBody tabstop char props text =
     -- Count the number of fence characters per line in the body.
     maxFalseFenceLength :: Text -> Int
     maxFalseFenceLength text =
-      either (const 0) id $
+      fromRight 0 $
         (`Atto.parseOnly` text) $
           many
             ( Atto.choice
