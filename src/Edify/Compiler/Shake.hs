@@ -66,6 +66,8 @@ eval user project target cmdmode assets = Free.iterM go
     go = \case
       Lang.Tabstop k ->
         k (project ^. #projectConfig . #projectTabstop)
+      Lang.UnwantedDivClasses k ->
+        k (target ^. #targetRemoveDivs)
       Lang.Asset file k ->
         Eval.depends (Input.FromFile file) abort $ \case
           Nothing -> do

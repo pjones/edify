@@ -31,6 +31,7 @@ import qualified Edify.Markdown.AST as AST
 import Edify.Markdown.Attributes (Attributes)
 import qualified Edify.Markdown.Attributes as Attrs
 import Edify.Markdown.Fence (Rewrite (..))
+import qualified Edify.Markdown.Fence as Fence
 import qualified Edify.Markdown.Include as Include
 
 -- | A compiled Markdown document.
@@ -88,9 +89,19 @@ compile input =
 
     rewrite :: AST.Block -> Compiler [AST.Block]
     rewrite block = do
-      let rw = \r -> (<>) <$> rewriteInsert r <*> rewriteExec r
       ts <- C.tabstop
-      AST.fencesRewrite ts rw block
+      classes <- C.unwantedDivClasses
+
+      let rewrites =
+            [ rewriteInsert,
+              rewriteExec,
+              pure . Fence.discardMatchingDivs classes . fst
+            ]
+          go r =
+            traverse ($ r) rewrites
+              <&> mconcat
+
+      AST.fencesRewrite ts go block
         >>= either
           (C.abort . C.DivRewriteError input)
           (AST.urls rewriteLink)

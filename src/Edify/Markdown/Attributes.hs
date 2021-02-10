@@ -118,6 +118,7 @@ newtype Value = Value Text
       Monoid,
       ToJSON,
       FromJSON,
+      Hashable,
       CaseInsensitive.FoldCase
     )
     via Text
@@ -140,6 +141,7 @@ newtype CssIdent = CssIdent
       ToText,
       ToJSON,
       FromJSON,
+      Hashable,
       CaseInsensitive.FoldCase
     )
     via Text

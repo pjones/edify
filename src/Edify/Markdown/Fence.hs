@@ -28,14 +28,17 @@ module Edify.Markdown.Fence
     RewriteError (..),
     Rewritten,
     rewrite,
+    discardMatchingDivs,
   )
 where
 
 import Control.Lens ((.~), (^.), _2)
 import qualified Data.Attoparsec.Text as Atto
+import qualified Data.CaseInsensitive as CaseInsensitive
 import qualified Data.Char as Char
 import Data.Functor.Foldable (Fix (..), cata, embed, project)
 import Data.Generics.Labels ()
+import qualified Data.HashSet as HashSet
 import Data.Semigroup (Max (..))
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy.Builder as LTB
@@ -418,6 +421,22 @@ instance Semigroup Rewrite where
 
 instance Monoid Rewrite where
   mempty = Rewrite Nothing Nothing
+
+-- | Return a rewrite request that will discard a fence if it contains
+-- one of the given CSS classes.
+--
+-- @since 0.5.0.0
+discardMatchingDivs ::
+  HashSet (CaseInsensitive.CI Attrs.CssIdent) ->
+  Attrs.Attributes ->
+  Rewrite
+discardMatchingDivs toRemove attrs =
+  let classes =
+        HashSet.fromList $
+          map CaseInsensitive.mk (Attrs.attrClasses attrs)
+   in if any (`HashSet.member` classes) toRemove
+        then Discard
+        else mempty
 
 -- | Error information when a rewrite fails.
 --

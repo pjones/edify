@@ -22,6 +22,7 @@ module Edify.Compiler.Lang
     Command,
     StandardInput,
     tabstop,
+    unwantedDivClasses,
     asset,
     readInput,
     exec,
@@ -35,8 +36,10 @@ where
 
 import Control.Monad.Free.Church (F, MonadFree, liftF)
 import Control.Monad.Free.TH (makeFree)
+import qualified Data.CaseInsensitive as CaseInsensitive
 import Edify.Compiler.Error (Error (..))
 import Edify.Input (Input)
+import qualified Edify.Markdown.Attributes as Attrs
 import qualified Edify.Text.Indent as Indent
 
 -- | Shell commands.
@@ -55,6 +58,10 @@ type StandardInput = Text
 data CompilerF k where
   -- | Access the 'Indent.Tabstop' that is currently in effect.
   Tabstop :: (Indent.Tabstop -> k) -> CompilerF k
+  -- | The set of classes for divs that need to be removed.
+  UnwantedDivClasses ::
+    (HashSet (CaseInsensitive.CI Attrs.CssIdent) -> k) ->
+    CompilerF k
   -- | Resolve the path to an asset.  If the asset needs to be
   -- compiled the path to the final build result is returned.
   -- Otherwise the absolute path to the source asset is returned.
@@ -68,8 +75,9 @@ data CompilerF k where
 
 instance Functor CompilerF where
   fmap f = \case
-    Asset file g -> Asset file (f . g)
     Tabstop g -> Tabstop (f . g)
+    UnwantedDivClasses g -> UnwantedDivClasses (f . g)
+    Asset file g -> Asset file (f . g)
     ReadInput x y g -> ReadInput x y (f . g)
     Exec x g -> Exec x (f . g)
     Abort e -> Abort e

@@ -114,6 +114,8 @@ eval allowDir = Free.iterM go . fmap (,mempty)
     go = \case
       Lang.Tabstop k ->
         k Indent.defaultTabstop
+      Lang.UnwantedDivClasses k ->
+        k mempty -- Keep all divs.
       Lang.Asset file k -> do
         abs <- Eval.depends (Input.FromFile file) abort (maybe (pure file) pure)
         k abs <&> second (embed (AuditAsset abs) <>)

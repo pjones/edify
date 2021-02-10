@@ -26,11 +26,14 @@ module Edify.Project.Target
 where
 
 import Control.Monad.Except (throwError)
+import qualified Data.CaseInsensitive as CaseInsensitive
 import qualified Data.Char as Char
+import qualified Data.HashSet as HashSet
 import Data.List ((\\))
 import qualified Data.Text as Text
 import qualified Edify.Compiler.FilePath as FilePath
 import Edify.JSON
+import qualified Edify.Markdown.Attributes as Attrs
 import Edify.Project.Error
 import qualified Edify.Text.Placeholders as Placeholders
 
@@ -66,6 +69,17 @@ data TargetF (f :: Readiness) = Target
     -- | The format for this target.  Used to compile assets to an
     -- appropriately matching format.
     targetFormat :: Format,
+    -- | Controls how some divs may be removed from the AST:
+    --
+    --   * When parsing from YAML/JSON this is a list of CSS class names.
+    --   * When resolved, a set of case-insensitive class names.
+    targetRemoveDivs ::
+      Checked
+        f
+        -- List of CSS class names.
+        (Maybe (NonEmpty Attrs.CssIdent))
+        -- A set of classes to discard.
+        (HashSet (CaseInsensitive.CI Attrs.CssIdent)),
     -- | A shell command used to convert Markdown to the desired
     -- format.
     targetCommand :: Checked f Text ((FilePath, FilePath) -> Text)
@@ -107,6 +121,7 @@ defaultTargets =
         { targetName = "handout",
           targetFileExtension = Nothing,
           targetFormat = PDF,
+          targetRemoveDivs = Nothing,
           targetCommand =
             command
               ( pandoc
@@ -123,6 +138,7 @@ defaultTargets =
         { targetName = "slides",
           targetFileExtension = Nothing,
           targetFormat = PDF,
+          targetRemoveDivs = Nothing,
           targetCommand =
             command
               ( pandoc
@@ -137,6 +153,7 @@ defaultTargets =
         { targetName = "webpage",
           targetFileExtension = Nothing,
           targetFormat = HTML,
+          targetRemoveDivs = Nothing,
           targetCommand =
             command
               ( pandoc
@@ -180,6 +197,7 @@ resolve target@Target {..} = do
       { targetName = targetName,
         targetFileExtension = ext,
         targetFormat = targetFormat,
+        targetRemoveDivs = unwantedDivClasses,
         targetCommand = cmd
       }
   where
@@ -202,3 +220,13 @@ resolve target@Target {..} = do
                 Right (toCommand ast)
               | otherwise ->
                 Left (TargetCommandInvalidVarsError cmd boundVars (freeVars ast))
+
+    unwantedDivClasses :: HashSet (CaseInsensitive.CI Attrs.CssIdent)
+    unwantedDivClasses =
+      case targetRemoveDivs of
+        Nothing ->
+          mempty
+        Just classes ->
+          HashSet.fromList $
+            toList $
+              fmap CaseInsensitive.mk classes
