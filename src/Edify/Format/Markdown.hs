@@ -23,6 +23,7 @@ module Edify.Format.Markdown
 where
 
 import qualified Data.Attoparsec.Text.Lazy as Atto
+import qualified Data.CaseInsensitive as CaseInsensitive
 import qualified Data.Text.Lazy.Builder as LTB
 import Edify.JSON
 import Edify.Markdown.Attributes
@@ -106,10 +107,15 @@ narrow (Token token) input = do
         CHeading Heading {..} ->
           case level of
             Nothing ->
-              if Just token == ((headingAttrs >>= attrID) <&> toText)
+              if tokenMatches (headingAttrs >>= attrID)
                 then (c : cs, Just headingLevel)
                 else (cs, Nothing)
             Just n ->
               if headingLevel > n
                 then (c : cs, level)
                 else (cs, Nothing)
+
+    tokenMatches :: Maybe Name -> Bool
+    tokenMatches = \case
+      Nothing -> False
+      Just hid -> CaseInsensitive.mk token == CaseInsensitive.mk (toText hid)

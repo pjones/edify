@@ -82,7 +82,7 @@ narrowP (Markers mstart mend) (Token token) = do
   let openP = do
         _ <- Atto.string mstart
         _ <- Atto.many1 Atto.space
-        _ <- Atto.string token
+        _ <- Atto.asciiCI token
         c <- Atto.peekChar'
         if isSpace c
           then -- Found the opening marker and token.
