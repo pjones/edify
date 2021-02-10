@@ -84,7 +84,10 @@ compile input =
                 & either
                   (C.abort . C.FormatError input)
                   (compile . Input.FromText)
-        pure (AST.unAST markdownAST)
+        pure
+          ( AST.unAST markdownAST
+              <> one (AST.BlankLine includeEndOfLine)
+          )
       other -> rewrite other
 
     rewrite :: AST.Block -> Compiler [AST.Block]
