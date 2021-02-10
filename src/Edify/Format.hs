@@ -19,10 +19,12 @@ module Edify.Format
     defaultFormat,
     markdown,
     fromFileExtension,
+    fromInput,
   )
 where
 
 import qualified Edify.Format.Markdown as Markdown
+import qualified Edify.Input as Input
 import Edify.Text.Narrow (Token (..))
 import qualified Edify.Text.Narrow as Narrow
 import System.FilePath (takeExtension)
@@ -73,3 +75,12 @@ fromFileExtension =
     ".md" -> markdown
     ".markdown" -> markdown
     _ -> defaultFormat
+
+-- | Get the function table for the given input.
+--
+-- @since 0.5.0.0
+fromInput :: Input.Input -> Format
+fromInput = \case
+  Input.FromFile file -> fromFileExtension file
+  Input.FromHandle _ -> defaultFormat
+  Input.FromText _ -> defaultFormat

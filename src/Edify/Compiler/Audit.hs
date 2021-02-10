@@ -119,7 +119,8 @@ eval allowDir = Free.iterM go . fmap (,mempty)
       Lang.Asset file k -> do
         abs <- Eval.depends (Input.FromFile file) abort (maybe (pure file) pure)
         k abs <&> second (embed (AuditAsset abs) <>)
-      Lang.ReadInput input subexp k -> do
+      Lang.ReadInput input _token subexp k -> do
+        -- N.B.: Narrowing token is ignored so we see entire files.
         (x, a) <- Eval.withInput input abort $ \path content ->
           eval allowDir (subexp content)
             <&> ( case path of

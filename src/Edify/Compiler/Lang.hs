@@ -41,6 +41,7 @@ import Edify.Compiler.Error (Error (..))
 import Edify.Input (Input)
 import qualified Edify.Markdown.Attributes as Attrs
 import qualified Edify.Text.Indent as Indent
+import Edify.Text.Narrow (Token)
 
 -- | Shell commands.
 --
@@ -67,7 +68,18 @@ data CompilerF k where
   -- Otherwise the absolute path to the source asset is returned.
   Asset :: FilePath -> (FilePath -> k) -> CompilerF k
   -- | Load text from the given input source.
-  ReadInput :: forall a k. Input -> (LText -> Compiler a) -> (a -> k) -> CompilerF k
+  ReadInput ::
+    forall a k.
+    -- The input to read from.
+    Input ->
+    -- Optionally narrow the input.
+    Maybe Token ->
+    -- A function to process the read data.
+    (LText -> Compiler a) ->
+    -- The result of the processing function.
+    (a -> k) ->
+    -- Constructed value.
+    CompilerF k
   -- | Execute a shell command feeding it some input.
   Exec :: (Command, StandardInput) -> (Text -> k) -> CompilerF k
   -- | Abort the compilation with the given error.
@@ -78,7 +90,7 @@ instance Functor CompilerF where
     Tabstop g -> Tabstop (f . g)
     UnwantedDivClasses g -> UnwantedDivClasses (f . g)
     Asset file g -> Asset file (f . g)
-    ReadInput x y g -> ReadInput x y (f . g)
+    ReadInput input token h g -> ReadInput input token h (f . g)
     Exec x g -> Exec x (f . g)
     Abort e -> Abort e
 

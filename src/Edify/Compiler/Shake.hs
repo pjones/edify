@@ -37,6 +37,7 @@ import qualified Edify.Compiler.Lang as Lang
 import qualified Edify.Compiler.Markdown as Markdown
 import qualified Edify.Compiler.Stack as Stack
 import qualified Edify.Compiler.User as User
+import qualified Edify.Format as Format
 import qualified Edify.Input as Input
 import qualified Edify.Markdown.AST as AST
 import qualified Edify.Project as Project
@@ -86,10 +87,17 @@ eval user project target cmdmode assets = Free.iterM go
                       `FilePath.addExt` ext
                in lift (Shake.need [output]) >> k output
             | otherwise -> lift (Shake.need [path]) >> k path
-      Lang.ReadInput input subexp k -> do
+      Lang.ReadInput input token subexp k -> do
         x <- Eval.withInput input abort $ \path content -> do
           whenJust path (lift . Shake.need . one)
-          eval user project target cmdmode assets (subexp content)
+          narrowed <-
+            case token of
+              Nothing ->
+                pure content
+              Just t ->
+                Format.narrow (Format.fromInput input) t content
+                  & either (abort . Error.FormatError input) pure
+          eval user project target cmdmode assets (subexp narrowed)
         k x
       Lang.Exec (pending, input) k ->
         verifyCommandWithBypass pending $ \approved -> do
