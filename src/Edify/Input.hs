@@ -183,8 +183,8 @@ readInput = \case
 -- | How to deal with fingerprints when reading files.
 --
 -- @since 0.5.0.0
-data ReadMode
-  = OnlyReadApprovedFiles FilePath
+data ReadMode a
+  = OnlyReadApprovedFiles FilePath (a -> [Text])
   | ReadWithoutFingerprint
 
 -- | Decode the contents of a file (JSON or YAML).
@@ -194,7 +194,7 @@ decodeFromFile ::
   forall m a.
   MonadIO m =>
   Aeson.FromJSON a =>
-  ReadMode ->
+  ReadMode a ->
   FilePath ->
   m (Either Error a)
 decodeFromFile mode file = do
@@ -203,17 +203,17 @@ decodeFromFile mode file = do
     then go mode
     else pure (Left $ FileDoesNotExist file)
   where
-    go :: ReadMode -> m (Either Error a)
+    go :: ReadMode a -> m (Either Error a)
     go = \case
-      OnlyReadApprovedFiles fpdir -> do
-        content <- readFileLBS file
-        let fpA = Fingerprint.fingerprint file content
-        Fingerprint.read mempty fpdir file <&> fst >>= \case
-          Nothing ->
-            pure (Left $ FileNotApprovedForReading file)
-          Just (fpB :: Fingerprint.Fingerprint Fingerprint.Self)
-            | fpA == fpB -> pure (parse content)
-            | otherwise -> pure (Left $ FileNotApprovedForReading file)
+      OnlyReadApprovedFiles fpdir getCommands -> runExceptT $ do
+        val <- ExceptT (readFileLBS file <&> parse)
+        (fp :: Fingerprint.Fingerprint Fingerprint.Commands) <-
+          Fingerprint.read mempty fpdir file
+            >>= maybe (throwError $ FileNotApprovedForReading file) pure . fst
+        let fps = Fingerprint.fingerprintContent fp
+        case Fingerprint.verify (getCommands val) fps of
+          Fingerprint.Verified -> pure val
+          Fingerprint.Mismatch -> throwError $ FileNotApprovedForReading file
       ReadWithoutFingerprint ->
         readFileLBS file <&> parse
     parse :: LByteString -> Either Error a
@@ -228,8 +228,8 @@ decodeFromFile mode file = do
 -- | How to deal with fingerprints with writing files.
 --
 -- @since 0.5.0.0
-data WriteMode
-  = WriteFingerprintTo FilePath
+data WriteMode a
+  = WriteFingerprintTo FilePath (a -> [Text])
   | WriteWithoutFingerprint
 
 -- | Encode a value (JSON/YAML) then write it to a file.
@@ -239,7 +239,7 @@ encodeToFile ::
   MonadIO m =>
   Aeson.ToJSON a =>
   -- | How to deal with fingerprints.
-  WriteMode ->
+  WriteMode a ->
   -- | The file to write.
   FilePath ->
   -- | The value to encode.
@@ -258,6 +258,7 @@ encodeToFile mode file x = runExceptT $ do
 
   case mode of
     WriteWithoutFingerprint -> pass
-    WriteFingerprintTo dir ->
-      let cache = Fingerprint.cache file bytes mempty
-       in Fingerprint.write dir (cache :: Fingerprint.Cache Fingerprint.Self)
+    WriteFingerprintTo dir getCommands ->
+      let cmds = Fingerprint.generate (getCommands x)
+          cache = Fingerprint.cache file (cmds :: Fingerprint.Commands) mempty
+       in Fingerprint.write dir cache

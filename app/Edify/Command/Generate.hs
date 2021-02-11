@@ -75,7 +75,7 @@ main user Flags {..} = case flagsWhat of
 
     -- FIXME: Proper error handling
     Input.encodeToFile
-      (Input.WriteFingerprintTo (user ^. #userCommandAllowDir))
+      (Input.WriteFingerprintTo (user ^. #userCommandAllowDir) Project.projectCommands)
       file
       Project.defaultProjectConfig
       >>= either (die . show) pure

@@ -25,6 +25,7 @@ import qualified Edify.Compiler.User as User
 import Edify.JSON
 import qualified Edify.Project.Inputs as Project
 import qualified Options.Applicative as Opt
+import qualified System.Directory as Directory
 
 -- | Options that affect audits.
 --
@@ -78,8 +79,8 @@ desc = ("Analyze and report any file security issues", flags)
 main :: User.User -> Flags -> IO ()
 main user Flags {..} = do
   toplevel <- Project.resolveTopLevel flagsProjectInputDir
-  Audit.main
-    flagsOutputMode
-    (user ^. #userCommandAllowDir)
-    (toplevel ^. #projectDirectory)
-    flagsInputFiles
+  traverse Directory.makeAbsolute flagsInputFiles
+    >>= Audit.main
+      flagsOutputMode
+      (user ^. #userCommandAllowDir)
+      (toplevel ^. #projectDirectory)

@@ -18,6 +18,7 @@ module Edify.Project
     resolve,
     defaultProjectConfig,
     readProjectConfigFile,
+    projectCommands,
 
     -- * Re-exports
     Error.Error (..),
@@ -44,7 +45,7 @@ module Edify.Project
   )
 where
 
-import Control.Lens ((^.), _1, _2)
+import Control.Lens (folded, (^.), (^..), _1, _2, _Just)
 import Control.Monad.Except (throwError)
 import qualified Edify.Compiler.User as User
 import qualified Edify.Input as Input
@@ -138,6 +139,12 @@ readProjectConfigFile fpdir prjdir =
                 pure def
               Just path ->
                 Input.decodeFromFile
-                  (Input.OnlyReadApprovedFiles fpdir)
+                  (Input.OnlyReadApprovedFiles fpdir projectCommands)
                   path
           )
+
+-- | Get all commands from all targets.
+--
+-- @since 0.5.0.0
+projectCommands :: ProjectConfig Parsed -> [Text]
+projectCommands = (^.. _1 . #projectTargets . _Just . folded . #targetCommand)

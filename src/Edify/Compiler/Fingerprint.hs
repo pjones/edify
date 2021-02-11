@@ -13,12 +13,9 @@
 --
 -- License: Apache-2.0
 module Edify.Compiler.Fingerprint
-  ( Fingerprint,
-    fingerprint,
+  ( Fingerprint (..),
     Fingerprinted (..),
     Status (..),
-    Self,
-    self,
     Commands,
     Cache,
     cache,
@@ -34,7 +31,7 @@ import qualified Data.Aeson.Encode.Pretty as Pretty
 import qualified Data.ByteString.Base16 as Base16
 import Data.Generics.Labels ()
 import qualified Data.HashMap.Strict as HashMap
-import qualified Data.Set as Set
+import qualified Data.HashSet as HashSet
 import Edify.JSON
 import qualified System.Directory as Directory
 import System.FilePath ((</>))
@@ -67,59 +64,27 @@ class Fingerprinted a where
   generate :: Subject a -> a
   verify :: Subject a -> a -> Status
 
--- | A fingerprint for the entire file.
---
--- @since 0.5.0.0
-newtype Self = Self
-  {unSelf :: Text}
-  deriving stock (Generic, Show)
-  deriving newtype (ToJSON, FromJSON, Eq)
-
-instance Semigroup Self where
-  (<>) _ y = y
-
-instance Fingerprinted Self where
-  type Subject Self = LByteString
-  generate bytes =
-    SHA256.hashlazy bytes
-      & Base16.encode
-      & decodeUtf8
-      & Self
-  verify bs self =
-    if generate bs == self
-      then Verified
-      else Mismatch
-
 -- | Individual fingerprints for each shell command mentioned in the
 -- corresponding file.
 --
 -- @since 0.5.0.0
 newtype Commands = Commands
-  {unCommands :: Set Text}
+  {unCommands :: HashSet Text}
   deriving stock (Generic, Show)
   deriving newtype (Semigroup, Monoid)
   deriving (ToJSON, FromJSON) via GenericJSON Commands
 
 instance Fingerprinted Commands where
-  type Subject Commands = Text
-  generate cmd =
-    encodeUtf8 cmd
-      & SHA256.hash
-      & Base16.encode
-      & decodeUtf8
-      & one
+  type Subject Commands = [Text]
+  generate cmds =
+    map (encodeUtf8 >>> SHA256.hash >>> Base16.encode >>> decodeUtf8) cmds
+      & fromList
       & Commands
-  verify cmd (Commands setA) =
-    let Commands setB = generate cmd
-     in if setB `Set.isSubsetOf` setA
+  verify cmds (Commands setA) =
+    let Commands setB = generate cmds
+     in if all (`HashSet.member` setA) setB
           then Verified
           else Mismatch
-
--- | Generate a fingerprint.
---
--- @since 0.5.0.0
-fingerprint :: Fingerprinted a => FilePath -> Subject a -> Fingerprint a
-fingerprint file subject = Fingerprint file (generate subject)
 
 -- | Fingerprint cache.
 --
@@ -134,14 +99,12 @@ newtype Cache a = Cache
 -- @since 0.5.0.0
 cache ::
   Semigroup a =>
-  Fingerprinted a =>
   FilePath ->
-  Subject a ->
+  a ->
   Cache a ->
   Cache a
-cache file subject (Cache cs) =
+cache file a (Cache cs) =
   let key = cacheKey file
-      entry = fingerprint file subject
    in Cache $
         HashMap.insertWith
           ( \x y ->
@@ -150,16 +113,8 @@ cache file subject (Cache cs) =
                 (on (<>) fingerprintContent x y)
           )
           key
-          entry
+          (Fingerprint file a)
           cs
-
--- | Fingerprint and cache the contents of the given file.
---
--- @since 0.5.0.0
-self :: MonadIO m => FilePath -> m (Cache Self)
-self file = do
-  bs <- readFileLBS file
-  pure (cache file bs mempty)
 
 -- | Read the fingerprint for a file from the cache or from the
 -- fingerprint directory.

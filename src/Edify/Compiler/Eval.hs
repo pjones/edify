@@ -150,7 +150,7 @@ commandStatus allowDir command onerror f = do
     Just top -> do
       (fp, cache) <- Fingerprint.read fpcache allowDir top
       #fpcache .= cache
-      case Fingerprint.verify command . fold <$> fp of
+      case Fingerprint.verify [command] . fold <$> fp of
         Nothing -> f top Fingerprint.Mismatch
         Just status -> f top status
 

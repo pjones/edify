@@ -22,6 +22,7 @@ module Edify.Compiler.Audit
   )
 where
 
+import Control.Lens ((%=))
 import Control.Monad.Except (throwError)
 import qualified Control.Monad.Free.Church as Free
 import qualified Data.Aeson as Aeson
@@ -29,14 +30,17 @@ import Data.Foldable (foldrM)
 import Data.Functor.Foldable (Fix (..), cata, embed)
 import Data.Generics.Labels ()
 import qualified Data.List.NonEmpty as NonEmpty
+import qualified Data.Text as Text
 import qualified Data.Text.Prettyprint.Doc as PP
 import qualified Edify.Compiler.Error as Error
 import qualified Edify.Compiler.Eval as Eval
 import qualified Edify.Compiler.Fingerprint as Fingerprint
 import qualified Edify.Compiler.Lang as Lang
 import qualified Edify.Compiler.Markdown as Markdown
+import qualified Edify.Compiler.Stack as Stack
 import qualified Edify.Input as Input
 import Edify.JSON
+import qualified Edify.Project as Project
 import qualified Edify.Text.Indent as Indent
 import qualified Prettyprinter.Render.Terminal as PP
 import qualified System.FilePath as FilePath
@@ -97,7 +101,7 @@ instance Monoid Audit where
 -- | Transformer stack needed when auditing Markdown.
 --
 -- @since 0.5.0.0
-type AuditT m a = Eval.Eval (ExceptT (Eval.Runtime, Error.Error) m) a
+type AuditT m a = Eval.Eval (ExceptT Error.Error m) a
 
 -- | Evaluate the 'Lang.Compiler' DSL producing an audit report.
 --
@@ -135,9 +139,7 @@ eval allowDir = Free.iterM go . fmap (,mempty)
         abort e
 
     abort :: Monad m => Error.Error -> AuditT m a
-    abort e = do
-      runtime <- get
-      throwError (runtime, e)
+    abort = throwError
 
 -- | Wrapper around 'eval' that also discharges the transformer stack.
 --
@@ -150,21 +152,44 @@ audit ::
   -- | Files to audit.
   NonEmpty FilePath ->
   -- | The audit report.
-  m (Either (Eval.Runtime, Error.Error) Audit)
-audit allowDir files =
-  runExceptT $
-    foldrM
-      (\x y -> (y <>) <$> go (Markdown.compile $ Input.FromFile x))
-      mempty
-      files
+  m (Either Error.Error Audit)
+audit allowDir files = runExceptT $ do
+  foldrM
+    ( \file y ->
+        fmap (y <>) $
+          if isConfigFile file
+            then projectAudit file
+            else markdownAudit (Markdown.compile $ Input.FromFile file)
+    )
+    mempty
+    files
   where
-    go :: Lang.Compiler a -> ExceptT (Eval.Runtime, Error.Error) m Audit
-    go =
+    markdownAudit :: Lang.Compiler a -> ExceptT Error.Error m Audit
+    markdownAudit =
       eval allowDir
         >>> evaluatingStateT Eval.emptyRuntime
         >>> runExceptT
         >>> fmap (second snd)
         >>> ExceptT
+
+    projectAudit :: FilePath -> ExceptT Error.Error m Audit
+    projectAudit file = evaluatingStateT Eval.emptyRuntime $ do
+      #stack %= Stack.push file
+      (project :: Project.ProjectConfig Parsed) <-
+        Input.decodeFromFile Input.ReadWithoutFingerprint file
+          >>= either (throwError . Error.InputError (Input.FromFile file)) pure
+      mapM
+        ( \cmd ->
+            Eval.commandStatus allowDir cmd throwError $ \_file status ->
+              pure (cmd, status)
+        )
+        (Project.projectCommands project)
+        <&> foldMap (\(cmd, status) -> embed (AuditCommand file cmd status))
+
+    isConfigFile :: FilePath -> Bool
+    isConfigFile =
+      FilePath.takeFileName
+        >>> (`elem` Project.projectConfigFiles)
 
 -- | Product a report that only includes commands that are blocked
 -- from running.
@@ -199,17 +224,28 @@ blockedReport inputDir =
     render :: (FilePath, Text) -> PP.Doc PP.AnsiStyle
     render (path, cmd) =
       mconcat
-        [ PP.sep
-            [ ppStatus Fingerprint.Mismatch <> PP.colon,
-              PP.dquotes (PP.pretty cmd)
-            ],
-          PP.nest
-            2
-            ( PP.line
-                <> PP.sep ["From file:", ppFilePath inputDir path]
-            ),
+        [ PP.nest 2 $
+            PP.vcat
+              [ ppStatus Fingerprint.Mismatch <> PP.colon,
+                PP.fillSep ["command" <> PP.colon, ppCommand cmd],
+                PP.fillSep
+                  [ "from file" <> PP.colon,
+                    ppFilePath inputDir path
+                  ]
+              ],
           PP.line
         ]
+
+-- | Pretty print a shell command.
+--
+-- @since 0.5.0.0
+ppCommand :: Text -> PP.Doc PP.AnsiStyle
+ppCommand =
+  Text.words
+    >>> map PP.pretty
+    >>> PP.fillSep
+    >>> PP.align
+    >>> PP.dquotes
 
 -- | Product a full report using the given audit trail.
 --
@@ -269,9 +305,9 @@ main ::
   IO ()
 main mode allowDir inputDir inputs =
   audit allowDir inputs >>= \case
-    Left (r, e) ->
+    Left e ->
       -- FIXME: Need proper error reporting.
-      print r >> print e
+      die (show e)
     Right info ->
       case mode of
         JsonAuditMode -> putLBS (Aeson.encode info)

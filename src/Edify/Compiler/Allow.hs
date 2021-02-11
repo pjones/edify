@@ -19,27 +19,15 @@ module Edify.Compiler.Allow
   )
 where
 
-import Data.Foldable (foldrM)
 import Data.Functor.Foldable (cata)
-import qualified Data.List.NonEmpty as NonEmpty
 import qualified Edify.Compiler.Audit as Audit
-import qualified Edify.Compiler.FilePath as FilePath
 import qualified Edify.Compiler.Fingerprint as Fingerprint
-import qualified Edify.Project as Project
 
--- | Generate allow files for Markdown documents.
+-- | Generate allow files for the given input files.
 --
 -- @since 0.5.0.0
-allowMarkdown ::
-  forall m.
-  MonadIO m =>
-  -- | Directory where allow files can be written.
-  FilePath ->
-  -- | List of files to allow.
-  NonEmpty FilePath ->
-  -- | Allow action.
-  m ()
-allowMarkdown dir files =
+allow :: forall m. MonadIO m => FilePath -> NonEmpty FilePath -> m ()
+allow dir files =
   Audit.audit dir files >>= \case
     Left e -> die (show e) -- FIXME: proper error display
     Right audit -> do
@@ -56,31 +44,9 @@ allowMarkdown dir files =
       Audit.AuditCommand path cmd _fp -> one (path, cmd)
 
     fingerprint :: [(FilePath, Text)] -> Fingerprint.Cache Fingerprint.Commands
-    fingerprint = sortNub >>> foldr (uncurry Fingerprint.cache) mempty
-
--- | Generate allow files for JSON/YAML configuration files.
---
--- @since 0.5.0.0
-allowConfig ::
-  forall m.
-  MonadIO m =>
-  -- | Directory where allow files can be written.
-  FilePath ->
-  -- | List of files to allow.
-  NonEmpty FilePath ->
-  -- | Allow action.
-  m ()
-allowConfig dir files = do
-  cache <- foldrM fingerprint mempty files
-  Fingerprint.write dir cache
-  where
-    fingerprint ::
-      FilePath ->
-      Fingerprint.Cache Fingerprint.Self ->
-      m (Fingerprint.Cache Fingerprint.Self)
-    fingerprint file cache = do
-      cache' <- Fingerprint.self file
-      pure (cache <> cache')
+    fingerprint =
+      let gen = Fingerprint.generate . one
+       in sortNub >>> foldr (uncurry Fingerprint.cache . second gen) mempty
 
 -- | Generate fingerprint files for the given inputs.
 --
@@ -93,12 +59,4 @@ main ::
   NonEmpty FilePath ->
   -- | IO actions that create the files.
   m ()
-main dir files = do
-  let (configs, markdowns) = NonEmpty.partition isConfigFile files
-  maybe pass (allowConfig dir) $ nonEmpty configs
-  maybe pass (allowMarkdown dir) $ nonEmpty markdowns
-  where
-    isConfigFile :: FilePath -> Bool
-    isConfigFile =
-      FilePath.takeFileName
-        >>> (`elem` Project.projectConfigFiles)
+main = allow
