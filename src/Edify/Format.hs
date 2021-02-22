@@ -14,15 +14,20 @@
 -- License: Apache-2.0
 module Edify.Format
   ( Format (..),
-    Error (..),
     Token (..),
     defaultFormat,
     markdown,
     fromFileExtension,
     fromInput,
+
+    -- * Errors
+    Error (..),
+    renderError,
   )
 where
 
+import qualified Data.Text.Prettyprint.Doc as PP
+import qualified Data.Text.Prettyprint.Doc.Util as PP
 import qualified Edify.Format.Markdown as Markdown
 import qualified Edify.Input as Input
 import Edify.Text.Narrow (Token (..))
@@ -36,6 +41,19 @@ data Error
   = NarrowError Narrow.Error
   | MarkdownError Markdown.Error
   deriving (Generic, Show)
+
+-- | Render an 'Error' for displaying to a user.
+--
+-- @since 0.5.0.0
+renderError :: Error -> PP.Doc ann
+renderError = \case
+  NarrowError (Narrow.Error s) ->
+    PP.fillSep
+      [ PP.reflow "Narrowing error:",
+        PP.pretty s
+      ]
+  MarkdownError e ->
+    Markdown.renderError e
 
 -- | Functions table for various formats.
 --

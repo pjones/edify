@@ -30,8 +30,6 @@ import Data.Foldable (foldrM)
 import Data.Functor.Foldable (Fix (..), cata, embed)
 import Data.Generics.Labels ()
 import qualified Data.List.NonEmpty as NonEmpty
-import qualified Data.Text as Text
-import qualified Data.Text.Prettyprint.Doc as PP
 import qualified Edify.Compiler.Error as Error
 import qualified Edify.Compiler.Eval as Eval
 import qualified Edify.Compiler.Fingerprint as Fingerprint
@@ -41,8 +39,10 @@ import qualified Edify.Compiler.Stack as Stack
 import qualified Edify.Input as Input
 import Edify.JSON
 import qualified Edify.Project as Project
+import qualified Edify.System.Exit as Exit
 import qualified Edify.Text.Indent as Indent
-import qualified Prettyprinter.Render.Terminal as PP
+import qualified Edify.Text.Pretty as P
+import qualified System.Directory as Directory
 import qualified System.FilePath as FilePath
 
 -- | What type of output to produce.
@@ -101,7 +101,7 @@ instance Monoid Audit where
 -- | Transformer stack needed when auditing Markdown.
 --
 -- @since 0.5.0.0
-type AuditT m a = Eval.Eval (ExceptT Error.Error m) a
+type AuditT m a = StateT Eval.Runtime (ExceptT Error.Error m) a
 
 -- | Evaluate the 'Lang.Compiler' DSL producing an audit report.
 --
@@ -201,7 +201,7 @@ blockedReport ::
   -- | The audit value to use.
   Audit ->
   -- | Nothing when no commands are blocked.
-  Maybe (PP.Doc PP.AnsiStyle)
+  Maybe (P.Doc P.AnsiStyle)
 blockedReport inputDir =
   blocked >>> \case
     [] -> Nothing
@@ -221,73 +221,60 @@ blockedReport inputDir =
           Fingerprint.Mismatch -> [(path, cmd)]
           Fingerprint.Verified -> []
 
-    render :: (FilePath, Text) -> PP.Doc PP.AnsiStyle
+    render :: (FilePath, Text) -> P.Doc P.AnsiStyle
     render (path, cmd) =
       mconcat
-        [ PP.nest 2 $
-            PP.vcat
-              [ ppStatus Fingerprint.Mismatch <> PP.colon,
-                PP.fillSep ["command" <> PP.colon, ppCommand cmd],
-                PP.fillSep
-                  [ "from file" <> PP.colon,
-                    ppFilePath inputDir path
+        [ P.nest 2 $
+            P.vcat
+              [ ppStatus Fingerprint.Mismatch <> P.colon,
+                P.fillSep ["command" <> P.colon, P.command cmd],
+                P.fillSep
+                  [ "from file" <> P.colon,
+                    P.file (Just inputDir) path
                   ]
               ],
-          PP.line
+          P.hardline
         ]
-
--- | Pretty print a shell command.
---
--- @since 0.5.0.0
-ppCommand :: Text -> PP.Doc PP.AnsiStyle
-ppCommand =
-  Text.words
-    >>> map PP.pretty
-    >>> PP.fillSep
-    >>> PP.align
-    >>> PP.dquotes
 
 -- | Product a full report using the given audit trail.
 --
 -- @since 0.5.0.0
-fullReport :: FilePath -> Audit -> PP.Doc PP.AnsiStyle
-fullReport inputDir = cata go >>> (<> PP.line)
+fullReport :: FilePath -> Audit -> P.Doc P.AnsiStyle
+fullReport inputDir = cata go >>> maybe mempty (<> P.hardline)
   where
-    go :: AuditF (PP.Doc PP.AnsiStyle) -> PP.Doc PP.AnsiStyle
+    go :: AuditF (Maybe (P.Doc P.AnsiStyle)) -> Maybe (P.Doc P.AnsiStyle)
     go = \case
-      AuditEnd -> mempty
-      AuditItems docs -> fold docs
+      AuditEnd -> Nothing
+      AuditItems docs ->
+        case catMaybes $ toList docs of
+          [] -> Nothing
+          ds -> Just (P.vcat ds)
       AuditAsset path ->
-        PP.line <> PP.sep ["Asset" <> PP.colon, ppFilePath inputDir path]
+        Just (P.sep ["Asset" <> P.colon, P.file (Just inputDir) path])
       AuditFile path doc ->
-        let entry = PP.sep ["Read" <> PP.colon, ppFilePath inputDir path]
-         in PP.line <> entry <> PP.nest 2 doc
+        let entry = P.sep ["Read" <> P.colon, P.file (Just inputDir) path]
+         in case doc of
+              Nothing -> Just entry
+              Just d -> Just (entry <> P.nest 2 (P.hardline <> d))
       AuditCommand _path command status ->
-        let entry =
-              PP.sep
-                [ "Exec" <> PP.colon,
-                  ppStatus status,
-                  PP.pretty command
-                ]
-         in PP.line <> entry
-
--- | Pretty print a file path.
---
--- @since 0.5.0.0
-ppFilePath :: FilePath -> FilePath -> PP.Doc ann
-ppFilePath dir = FilePath.makeRelative dir >>> PP.pretty
+        Just $
+          P.sep
+            [ "Exec" <> P.colon,
+              ppStatus status,
+              P.pretty command
+            ]
 
 -- | Pretty print a fingerprint status.
 --
 -- @since 0.5.0.0
-ppStatus :: Fingerprint.Status -> PP.Doc PP.AnsiStyle
+ppStatus :: Fingerprint.Status -> P.Doc P.AnsiStyle
 ppStatus = \case
   Fingerprint.Mismatch ->
-    let doc = PP.brackets "BLOCKED"
-     in PP.annotate (PP.color PP.Red) doc
+    let doc = P.brackets "BLOCKED"
+     in P.annotate (P.color P.Red) doc
   Fingerprint.Verified ->
-    let doc = PP.brackets "ALLOWED"
-     in PP.annotate (PP.color PP.Green) doc
+    let doc = P.brackets "ALLOWED"
+     in P.annotate (P.color P.Green) doc
 
 -- | Run a report with the given options.
 --
@@ -303,22 +290,29 @@ main ::
   NonEmpty FilePath ->
   -- | Audit action.
   IO ()
-main mode allowDir inputDir inputs =
+main mode allowDir inputDir inputs = do
+  cwd <- liftIO Directory.getCurrentDirectory
   audit allowDir inputs >>= \case
     Left e ->
-      -- FIXME: Need proper error reporting.
-      die (show e)
+      Exit.withError (Error.render' cwd inputDir inputs e)
     Right info ->
       case mode of
         JsonAuditMode -> putLBS (Aeson.encode info)
         FullAuditMode ->
-          printReport (fullReport inputDir info)
+          P.putDoc (fullReport inputDir info)
         BlockedCommandAuditMode ->
-          case blockedReport inputDir info of
-            Nothing -> pass
-            Just r -> do
-              printReport r
-              exitFailure
-  where
-    printReport :: PP.Doc PP.AnsiStyle -> IO ()
-    printReport = PP.putDoc
+          let post =
+                P.vcat
+                  [ P.reflow "To allow these commands run:",
+                    P.callout
+                      ( P.edify
+                          "allow"
+                          (map (P.file (Just cwd)) $ toList inputs)
+                      )
+                  ]
+           in case blockedReport inputDir info of
+                Nothing ->
+                  exitSuccess
+                Just doc -> do
+                  P.putDoc (doc <> P.hardline <> post <> P.hardline)
+                  exitFailure

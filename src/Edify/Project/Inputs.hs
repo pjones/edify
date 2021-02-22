@@ -89,22 +89,24 @@ inputsFromCommandLine =
 -- | FIXME: Write documentation for TopLevelF
 --
 -- @since 0.5.0.0
-newtype TopLevelF (f :: Readiness) = TopLevel
-  { projectDirectory :: Default f FilePath
+data TopLevelF (f :: Readiness) = TopLevel
+  { projectDirectory :: Default f FilePath,
+    projectInitialDirectory :: Checked f () FilePath
   }
   deriving stock (Generic)
 
 instance Semigroup (TopLevelF Parsed) where
   (<>) x y =
     TopLevel
-      { projectDirectory =
-          projectDirectory x <|> projectDirectory y
+      { projectDirectory = projectDirectory x <|> projectDirectory y,
+        projectInitialDirectory = projectInitialDirectory x
       }
 
 instance Monoid (TopLevelF Parsed) where
   mempty =
     TopLevel
-      { projectDirectory = Nothing
+      { projectDirectory = Nothing,
+        projectInitialDirectory = ()
       }
 
 deriving via
@@ -137,6 +139,7 @@ topLevelFromCommandLine =
               Opt.help "Use DIR as the top-level project directory"
             ]
       )
+    <*> pass
 
 -- | List of supported file names for project configuration.
 --
@@ -221,12 +224,14 @@ resolveTopLevel ::
   TopLevelF Parsed ->
   m (TopLevelF Resolved)
 resolveTopLevel TopLevel {..} = do
+  cwd <- liftIO Directory.getCurrentDirectory
   top <- locateTopLevelDir
   liftIO (Directory.setCurrentDirectory top)
 
   pure
     TopLevel
-      { projectDirectory = top
+      { projectDirectory = top,
+        projectInitialDirectory = cwd
       }
   where
     locateTopLevelDir :: m FilePath

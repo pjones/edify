@@ -22,15 +22,17 @@ module Edify.Compiler.Shake
   )
 where
 
+import Control.Exception (catch, throwIO)
 import Control.Lens ((^.))
+import Control.Monad.Except (throwError)
 import qualified Control.Monad.Free.Church as Free
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text.Lazy.Builder as Builder
+import qualified Data.Text.Prettyprint.Doc as PP
 import qualified Development.Shake as Shake
 import qualified Development.Shake.Database as Shake
 import qualified Edify.Compiler.Asset as Asset
 import qualified Edify.Compiler.Error as Error
-import Edify.Compiler.Eval (Eval)
 import qualified Edify.Compiler.Eval as Eval
 import qualified Edify.Compiler.FilePath as FilePath
 import qualified Edify.Compiler.Lang as Lang
@@ -41,6 +43,8 @@ import qualified Edify.Format as Format
 import qualified Edify.Input as Input
 import qualified Edify.Markdown.AST as AST
 import qualified Edify.Project as Project
+import qualified Edify.System.Exit as Exit
+import qualified Prettyprinter.Render.Terminal as PP
 import qualified System.Directory as Directory
 
 -- | Safety controls around running shell commands.
@@ -49,6 +53,17 @@ import qualified System.Directory as Directory
 data CommandSafety
   = RequireCommandFingerprints
   | UnsafeAllowAllCommands
+
+-- | FIXME: Write documentation for Eval
+--
+-- @since 0.5.0.0
+type Eval = ExceptT Lang.Error (StateT Eval.Runtime Shake.Action)
+
+-- | FIXME: Write description for shake
+--
+-- @since 0.5.0.0
+shake :: Shake.Action a -> Eval a
+shake = lift . lift
 
 -- | General purpose interpreter that results in a Shake action.
 --
@@ -60,10 +75,10 @@ eval ::
   CommandSafety ->
   Asset.AssetMap ->
   Lang.Compiler a ->
-  Eval Shake.Action a
+  Eval a
 eval user project target cmdmode assets = Free.iterM go
   where
-    go :: Lang.CompilerF (Eval Shake.Action a) -> Eval Shake.Action a
+    go :: Lang.CompilerF (Eval a) -> Eval a
     go = \case
       Lang.Tabstop k ->
         k (project ^. #projectConfig . #projectTabstop)
@@ -85,18 +100,18 @@ eval user project target cmdmode assets = Free.iterM go
                   output =
                     FilePath.toOutputPath indir outdir path
                       `FilePath.addExt` ext
-               in lift (Shake.need [output]) >> k output
-            | otherwise -> lift (Shake.need [path]) >> k path
+               in shake (Shake.need [output]) >> k output
+            | otherwise -> shake (Shake.need [path]) >> k path
       Lang.ReadInput input token subexp k -> do
         x <- Eval.withInput input abort $ \path content -> do
-          whenJust path (lift . Shake.need . one)
+          whenJust path (shake . Shake.need . one)
           narrowed <-
             case token of
               Nothing ->
                 pure content
               Just t ->
                 Format.narrow (Format.fromInput input) t content
-                  & either (abort . Error.FormatError input) pure
+                  & either (abort . Lang.FormatError input) pure
           eval user project target cmdmode assets (subexp narrowed)
         k x
       Lang.Exec (pending, input) k ->
@@ -108,29 +123,24 @@ eval user project target cmdmode assets = Free.iterM go
                   Shake.Shell
                 ]
           Shake.Stdout (output :: LByteString) <-
-            lift $ Shake.command copts (toString approved) []
+            shake $ Shake.command copts (toString approved) []
           k (decodeUtf8 output)
       Lang.Abort e ->
         abort e
 
-    warn :: Text -> Eval Shake.Action ()
-    warn = toString >>> Shake.putWarn >>> lift
+    warn :: Text -> Eval ()
+    warn = toString >>> Shake.putWarn >>> shake
 
-    abort :: Error.Error -> Eval Shake.Action a
-    abort e = do
-      Eval.Runtime {stack} <- get
-      let str = Error.renderError e <> "\n" <> show stack
-      lift $ do
-        Shake.putError str
-        fail str
+    abort :: Lang.Error -> Eval a
+    abort = throwError
 
     -- Verify a command fingerprint then call the given continuation.
     verifyCommandWithBypass ::
       -- | Command to verify.
       Text ->
       -- | Continuation to call if command is allowed.
-      (Text -> Eval Shake.Action a) ->
-      Eval Shake.Action a
+      (Text -> Eval a) ->
+      Eval a
     verifyCommandWithBypass command f =
       case cmdmode of
         RequireCommandFingerprints ->
@@ -256,17 +266,17 @@ markdownRule ::
 markdownRule user project target cmdmode assets =
   let extIn = FilePath.FromProjectInput (FilePath.Ext "md")
       extOut = Project.targetFileExtension target
-   in fileExtensionRule project (extIn, extOut) $ \input output -> do
-        let compiler = Markdown.compile (Input.FromFile input)
-        markdown <-
-          eval user project target cmdmode assets compiler
-            & evaluatingStateT Eval.emptyRuntime
-        writeFileLText
-          output
-          ( Markdown.markdownAST markdown
-              & AST.markdownT
-              & Builder.toLazyText
-          )
+   in fileExtensionRule project (extIn, extOut) action
+  where
+    action :: FilePath -> FilePath -> Shake.Action ()
+    action input output = do
+      let compiler = Markdown.compile (Input.FromFile input)
+      ast <-
+        eval user project target cmdmode assets compiler
+          & runExceptT
+          & evaluatingStateT Eval.emptyRuntime
+          >>= either (liftIO . throwIO) pure
+      writeFileLText output (ast & AST.markdownT & Builder.toLazyText)
 
 -- | Convert a target's command into a Shake rule.
 --
@@ -336,11 +346,10 @@ main ::
   Project.Project ->
   CommandSafety ->
   IO ()
-main user project cmdmode = do
-  let assets = Asset.assets
+main user project cmdmode = (`catch` onError) $ do
   (_, after) <- Shake.shakeWithDatabase
     shakeOptions
-    (rules user project cmdmode assets)
+    (rules user project cmdmode Asset.assets)
     $ \db -> do
       Shake.shakeOneShotDatabase db
       Shake.shakeRunDatabase db []
@@ -351,3 +360,27 @@ main user project cmdmode = do
       Shake.shakeOptions
         { Shake.shakeFiles = project ^. #projectConfig . #projectOutputDirectory
         }
+
+    onError :: Shake.ShakeException -> IO a
+    onError e = case fromException (Shake.shakeExceptionInner e) of
+      Just ee -> Exit.withError (Error.render project ee)
+      Nothing ->
+        let toS = show >>> words >>> map PP.pretty
+            doc =
+              PP.vcat
+                [ PP.fillSep
+                    [ "system error while building project file:",
+                      PP.annotate
+                        (PP.color PP.Yellow)
+                        (PP.pretty $ Shake.shakeExceptionTarget e)
+                    ],
+                  PP.nest
+                    2
+                    ( PP.line
+                        <> PP.annotate
+                          (PP.color PP.Red)
+                          (PP.fillSep (toS $ Shake.shakeExceptionInner e))
+                        <> PP.line
+                    )
+                ]
+         in Exit.withError doc

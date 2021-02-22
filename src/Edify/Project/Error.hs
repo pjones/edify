@@ -18,9 +18,8 @@ module Edify.Project.Error
   )
 where
 
-import qualified Data.Text.Prettyprint.Doc as PP
 import qualified Edify.Input as Input
-import qualified Prettyprinter.Render.Terminal as PP
+import qualified Edify.Text.Pretty as P
 
 -- | Error that may occur while resolving project configuration.
 --
@@ -39,43 +38,40 @@ data Error
     TargetCommandInvalidVarsError Text [Char] [Char]
   deriving stock (Generic, Show)
 
--- | FIXME: Write description for renderError
+-- | Render an 'Error'.
 --
 -- @since 0.5.0.0
-renderError :: Error -> PP.Doc PP.AnsiStyle
+renderError :: Error -> P.Doc P.AnsiStyle
 renderError = \case
   MissingInputFilesError ->
-    "no markdown files were given as input"
+    P.reflow "no markdown files were given as input"
   ConfigInputError e ->
-    PP.fillSep
-      [ "while reading project configuration",
+    P.fillSep
+      [ P.reflow "project configuration",
         Input.renderError e
       ]
   InvalidTargetFileExtensionError text ->
-    PP.vcat
-      [ "unable to translate target name into a valid file extension:",
-        PP.fillSep
-          [ PP.dquotes (PP.annotate (PP.color PP.Red) (PP.pretty text)),
-            "cannot be made into a valid file extension."
-          ]
+    P.fillSep
+      [ P.reflow "unable to translate target name into a valid file extension:",
+        P.dquotes (P.red (P.reflow text)),
+        P.reflow "cannot be made into a valid file extension."
       ]
   TargetCommandInvalidFormatError cmd msg ->
-    PP.fillSep
-      [ "a target's command isn't a valid format string.",
-        "While parsing",
-        PP.dquotes (PP.pretty cmd),
-        "the parser produced an error:",
-        PP.annotate (PP.color PP.Red) (PP.pretty msg)
+    P.fillSep
+      [ P.reflow "a target's command isn't a valid format string.",
+        P.reflow "While parsing",
+        P.command cmd,
+        P.reflow "the parser produced an error:",
+        P.annotate (P.color P.Red) (P.reflow $ toText msg)
       ]
   TargetCommandInvalidVarsError cmd bound free ->
-    let ppVar color = map (PP.annotate (PP.color color) . ("%" <>) . PP.pretty)
-        ppFree = ppVar PP.Red free
-        ppBound = ppVar PP.Green bound
-        ppList items = PP.nest 2 (PP.fillSep $ PP.punctuate PP.comma items)
-        ppCmd = PP.dquotes $ PP.annotate (PP.color PP.Yellow) (PP.pretty cmd)
-     in PP.vcat
-          [ "target's command contains invalid variables:",
-            PP.nest 2 (PP.hardline <> ppCmd) <> PP.hardline,
-            PP.fillSep ["invalid variables:", ppList ppFree],
-            PP.fillSep ["allowed variables:", ppList ppBound]
+    let ppVar color = map (color . ("%" <>) . P.pretty)
+        ppFree = ppVar P.red free
+        ppBound = ppVar P.green bound
+        ppList items = P.nest 2 (P.fillSep $ P.punctuate P.comma items)
+     in P.vcat
+          [ P.reflow "target's command contains invalid variables:",
+            P.nest 2 (P.hardline <> P.command cmd) <> P.hardline,
+            P.fillSep ["invalid variables:", ppList ppFree],
+            P.fillSep ["allowed variables:", ppList ppBound]
           ]

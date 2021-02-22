@@ -13,8 +13,7 @@
 --
 -- License: Apache-2.0
 module Edify.Compiler.Markdown
-  ( Markdown (..),
-    compile,
+  ( compile,
   )
 where
 
@@ -34,25 +33,11 @@ import Edify.Markdown.Fence (Rewrite (..))
 import qualified Edify.Markdown.Fence as Fence
 import qualified Edify.Markdown.Include as Include
 
--- | A compiled Markdown document.
---
--- @since 0.5.0.0
-data Markdown = Markdown
-  { -- | The initial input from which this document was generated.
-    markdownInput :: Input,
-    -- | The final, rewritten Markdown syntax tree.
-    markdownAST :: AST.AST
-  }
-
 -- | Compile the given 'Input' as Markdown.
 --
 -- @since 0.5.0.0
-compile :: Input -> Compiler Markdown
-compile input =
-  C.readInput input Nothing $ \content ->
-    parse content
-      >>= AST.blocks process
-      <&> Markdown input
+compile :: Input -> Compiler AST.AST
+compile input = C.readInput input Nothing (parse >=> AST.blocks process)
   where
     parse :: LText -> Compiler AST.AST
     parse content =
@@ -75,13 +60,13 @@ compile input =
     process :: AST.Block -> Compiler [AST.Block]
     process = \case
       AST.IncludeBlock Include.Include {..} -> do
-        Markdown {..} <-
+        ast <-
           C.readInput
             (Input.FromFile includeFile)
             includeToken
             (compile . Input.FromText)
         pure
-          ( AST.unAST markdownAST
+          ( AST.unAST ast
               <> one (AST.BlankLine includeEndOfLine)
           )
       other -> rewrite other

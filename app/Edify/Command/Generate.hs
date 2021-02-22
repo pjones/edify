@@ -24,6 +24,7 @@ import qualified Edify.Compiler.FilePath as FilePath
 import qualified Edify.Compiler.User as User
 import qualified Edify.Input as Input
 import qualified Edify.Project as Project
+import qualified Edify.System.Exit as Exit
 import qualified Options.Applicative as Opt
 import qualified System.Directory as Directory
 
@@ -73,9 +74,11 @@ main user Flags {..} = case flagsWhat of
     pwd <- Directory.getCurrentDirectory
     file <- FilePath.makeAbsoluteToDir pwd Project.defaultProjectConfigFile
 
-    -- FIXME: Proper error handling
     Input.encodeToFile
-      (Input.WriteFingerprintTo (user ^. #userCommandAllowDir) Project.projectCommands)
+      ( Input.WriteFingerprintTo
+          (user ^. #userCommandAllowDir)
+          Project.projectCommands
+      )
       file
       Project.defaultProjectConfig
-      >>= either (die . show) pure
+      >>= either (Exit.withError . Input.renderError) pure

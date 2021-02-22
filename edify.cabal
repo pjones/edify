@@ -148,6 +148,7 @@ library
     Edify.Text.Indent
     Edify.Text.Narrow
     Edify.Text.Placeholders
+    Edify.Text.Pretty
 
 ------------------------------------------------------------------------------
 executable edify

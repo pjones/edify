@@ -33,11 +33,11 @@ where
 
 import Control.Monad.Except (throwError)
 import qualified Data.Aeson as Aeson
+import qualified Data.Text as Text
 import qualified Data.Text.Lazy.IO as LText
-import qualified Data.Text.Prettyprint.Doc as PP
 import qualified Data.Yaml as YAML
 import qualified Edify.Compiler.Fingerprint as Fingerprint
-import qualified Prettyprinter.Render.Terminal as PP
+import qualified Edify.Text.Pretty as P
 import System.Directory (getCurrentDirectory)
 import qualified System.Directory as Dir
 import qualified System.FilePath as FilePath
@@ -57,18 +57,19 @@ data Input
 -- | Render an 'Input' value for displaying to the user.
 --
 -- @since 0.5.0.0
-renderInput :: Input -> PP.Doc ann
-renderInput = \case
+renderInput :: FilePath -> Input -> P.Doc ann
+renderInput dir = \case
   FromFile path ->
-    "file " <> PP.pretty path
+    P.fillSep ["file", P.file (Just dir) path]
   FromHandle h ->
     if h == stdin
       then "<stdin>"
-      else PP.pretty (show h :: Text)
+      else P.reflow (show h :: Text)
   FromText t ->
-    "text "
-      <> PP.nest 4 (PP.line <> PP.pretty t)
-      <> PP.line
+    P.vcat
+      [ "text:",
+        P.callout (P.vcat $ map P.pretty $ Text.lines $ toStrict t)
+      ]
 
 -- | Errors that may occur while processing input.
 --
@@ -89,59 +90,42 @@ data Error
 -- | Render an error message to display to the user.
 --
 -- @since 0.5.0.0
-renderError :: Error -> PP.Doc PP.AnsiStyle
+renderError :: Error -> P.Doc P.AnsiStyle
 renderError = \case
   FileDoesNotExist file ->
-    fileError
-      file
-      [ PP.annotate (PP.color PP.Red) "does not exist"
-      ]
+    fileError file [P.red (P.reflow "does not exist!")]
   FileWillBeOverritten file ->
-    fileError
-      file
-      [ PP.annotate (PP.color PP.Red) "would be overwritten"
-      ]
+    fileError file [P.red (P.reflow "would be overwritten!")]
   FileNotApprovedForReading file ->
-    PP.vcat
+    P.vcat
       [ fileError
           file
-          [ PP.annotate (PP.color PP.Red) "is not approved for reading",
-            "because it may contain shell commands."
+          [ P.red (P.reflow "is not approved for reading"),
+            P.reflow "because it contains shell commands.",
+            P.hardline
           ],
-        "If the file is safe to read you can approve it with" <> PP.colon,
-        PP.nest 4 (PP.line <> "edify allow " <> PP.pretty file)
+        P.reflow "Please review the commands in the file with:",
+        P.callout (P.edify "audit" [P.file Nothing file])
       ]
   FailedJsonParse file msg ->
     fileError
       file
-      [ "contains a JSON syntax error:",
-        PP.annotate (PP.color PP.Red) (PP.pretty msg)
+      [ P.reflow "contains a JSON syntax error:",
+        P.callout (P.red (P.reflow $ toText msg))
       ]
   FailedYamlParse file e ->
     fileError
       file
-      [ "contains a YAML syntax error:",
-        PP.annotate
-          (PP.color PP.Red)
-          (PP.pretty $ YAML.prettyPrintParseException e)
+      [ P.reflow "contains a YAML syntax error:",
+        P.callout (P.red (P.reflow $ toText $ YAML.prettyPrintParseException e))
       ]
   where
-    fileError :: FilePath -> [PP.Doc PP.AnsiStyle] -> PP.Doc PP.AnsiStyle
+    fileError :: FilePath -> [P.Doc P.AnsiStyle] -> P.Doc P.AnsiStyle
     fileError file msg =
-      PP.vcat
-        [ "file" <> PP.colon,
-          PP.nest
-            2
-            ( mconcat
-                [ PP.hardline,
-                  PP.fillSep
-                    ( PP.dquotes
-                        (PP.annotate (PP.color PP.Yellow) (PP.pretty file)) :
-                      msg
-                    )
-                ]
-            )
-            <> PP.hardline
+      P.fillSep
+        [ "file",
+          P.yellow (P.file Nothing file),
+          P.fillSep msg
         ]
 
 -- | Figure out what kind of input a file path refers to.

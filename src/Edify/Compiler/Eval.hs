@@ -17,7 +17,6 @@
 module Edify.Compiler.Eval
   ( Runtime (..),
     emptyRuntime,
-    Eval,
     depends,
     withInput,
     commandStatus,
@@ -57,32 +56,28 @@ emptyRuntime =
       fpcache = mempty
     }
 
--- | Compiler evaluation type.
---
--- @since 0.5.0.0
-type Eval = StateT Runtime
-
 -- | Record a dependency on the given input.
 --
 -- @since 0.5.0.0
 depends ::
   forall m a.
   MonadIO m =>
+  MonadState Runtime m =>
   -- | Input to add as a dependency.
   Input.Input ->
   -- | Continuation if an error occurs.
-  (Error.Error -> Eval m a) ->
+  (Error.Error -> m a) ->
   -- | Continuation if the dependency was added.
-  (Maybe FilePath -> Eval m a) ->
+  (Maybe FilePath -> m a) ->
   -- | Final result.
-  Eval m a
+  m a
 depends input onerror onsuccess =
   case input of
     Input.FromFile file -> go file
     Input.FromHandle {} -> onsuccess Nothing
     Input.FromText {} -> onsuccess Nothing
   where
-    go :: FilePath -> Eval m a
+    go :: FilePath -> m a
     go file = do
       Runtime {..} <- get
       case Stack.top stack of
@@ -103,20 +98,21 @@ depends input onerror onsuccess =
 withInput ::
   forall m a.
   MonadIO m =>
+  MonadState Runtime m =>
   -- | The input to read.
   Input.Input ->
   -- | Continuation if an error occurs.
-  (Error.Error -> Eval m a) ->
+  (Error.Error -> m a) ->
   -- | Continuation if the input could be read.
-  (Maybe FilePath -> LText -> Eval m a) ->
+  (Maybe FilePath -> LText -> m a) ->
   -- | Final result.
-  Eval m a
+  m a
 withInput input abort f = do
   depends input abort $ \path ->
     Input.readInput (maybe input Input.FromFile path)
       >>= either (abort . Error.InputError input) (go path)
   where
-    go :: Maybe FilePath -> LText -> Eval m a
+    go :: Maybe FilePath -> LText -> m a
     go path content =
       case path of
         Nothing -> f path content
@@ -131,17 +127,18 @@ withInput input abort f = do
 -- @since 0.5.0.0
 commandStatus ::
   MonadIO m =>
+  MonadState Runtime m =>
   -- | Directory where allow files are stored.
   FilePath ->
   -- | The command to verity.
   Text ->
   -- | Continuation to call if an error occurs.
-  (Error.Error -> Eval m a) ->
+  (Error.Error -> m a) ->
   -- | Continuation called with the file at the top of the stack, and
   -- the command fingerprint status.
-  (FilePath -> Fingerprint.Status -> Eval m a) ->
+  (FilePath -> Fingerprint.Status -> m a) ->
   -- | Final result.
-  Eval m a
+  m a
 commandStatus allowDir command onerror f = do
   Runtime {fpcache, stack} <- get
   case Stack.top stack of
@@ -159,16 +156,17 @@ commandStatus allowDir command onerror f = do
 -- @since 0.5.0.0
 verifyCommand ::
   MonadIO m =>
+  MonadState Runtime m =>
   -- | Directory where allow files are stored.
   FilePath ->
   -- | The command to verify.
   Text ->
   -- | Continuation if an error occurs.
-  (Error.Error -> Eval m a) ->
+  (Error.Error -> m a) ->
   -- | Continuation if the text was verified.
-  (Text -> Eval m a) ->
+  (Text -> m a) ->
   -- | Final result.
-  Eval m a
+  m a
 verifyCommand allowDir command onerror onsuccess = do
   commandStatus allowDir command onerror $ \file status ->
     case status of

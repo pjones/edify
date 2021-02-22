@@ -13,18 +13,23 @@
 --
 -- License: Apache-2.0
 module Edify.Format.Markdown
-  ( Error (..),
-    Chunk (..),
+  ( Chunk (..),
     Heading (..),
     toChunks,
     fromChunks,
     narrow,
+
+    -- * Errors
+    Error (..),
+    renderError,
   )
 where
 
 import qualified Data.Attoparsec.Text.Lazy as Atto
 import qualified Data.CaseInsensitive as CaseInsensitive
 import qualified Data.Text.Lazy.Builder as LTB
+import qualified Data.Text.Prettyprint.Doc as PP
+import qualified Data.Text.Prettyprint.Doc.Util as PP
 import Edify.JSON
 import Edify.Markdown.Attributes
 import Edify.Markdown.Heading
@@ -37,6 +42,23 @@ data Error
   = ParseError String
   | NarrowTokenMissingError Text
   deriving (Generic, Show)
+
+-- | Render an 'Error' for displaying to a user.
+--
+-- @since 0.5.0.0
+renderError :: Error -> PP.Doc ann
+renderError = \case
+  ParseError s ->
+    PP.fillSep
+      [ PP.reflow "Markdown parsing error:",
+        PP.pretty s
+      ]
+  NarrowTokenMissingError t ->
+    PP.fillSep
+      [ PP.reflow "While narrowing markdown,",
+        PP.reflow "document doesn't have a heading with the requested ID:",
+        PP.dquotes (PP.pretty t)
+      ]
 
 -- | A single chunk of Markdown.
 --
