@@ -17,15 +17,17 @@ module Main
   )
 where
 
+import Data.Version (showVersion)
 import qualified Edify.Command.Allow as Allow
 import qualified Edify.Command.Audit as Audit
 import qualified Edify.Command.Build as Build
 import qualified Edify.Command.Generate as Generate
 import qualified Edify.Compiler.User as User
+import qualified Edify.Input as Input
+import qualified Edify.System.Exit as Exit
 import qualified Options.Applicative as Options
-
--- import Data.Version (showVersion)
--- import Paths_edify (version)
+import Paths_edify (version)
+import qualified System.Directory as Directory
 
 -- | Type for the command line parser.
 data Command
@@ -54,22 +56,39 @@ commands =
             (Options.progDesc desc)
         )
 
--- -- | Print the version number and exit.
--- versionCmd :: Parser (a -> a)
--- versionCmd = infoOption versionStr versionMod
---   where
---     versionStr = showVersion version -- From cabal file.
---     versionMod =
---       long "version" <> hidden
---         <> help "Print version number and exit"
+-- | Print the version number and exit.
+versionCmd :: Options.Parser (a -> a)
+versionCmd =
+  Options.infoOption (showVersion version) $
+    mconcat
+      [ Options.long "version",
+        Options.help "Print version number and exit"
+      ]
 
 main :: IO ()
 main = do
-  user <- User.resolve mempty -- FIXME: Load this from disk
-  Options.execParser opts >>= \case
-    CmdBuild flags -> Build.main user flags
-    CmdAudit flags -> Audit.main user flags
-    CmdAllow flags -> Allow.main user flags
-    CmdGenerate flags -> Generate.main user flags
+  userConfigFile <- User.defaultUserConfigFile
+  exists <- Directory.doesFileExist userConfigFile
+
+  user <-
+    if exists
+      then loadUserConfig userConfigFile
+      else User.resolve mempty
+
+  command <- Options.execParser opts
+
+  Exit.catchSync $
+    case command of
+      CmdBuild flags -> Build.main user flags
+      CmdAudit flags -> Audit.main user flags
+      CmdAllow flags -> Allow.main user flags
+      CmdGenerate flags -> Generate.main user flags
   where
-    opts = Options.info (Options.helper <*> commands) mempty
+    opts = Options.info (Options.helper <*> versionCmd <*> commands) mempty
+
+    -- Load user configuration or die.
+    loadUserConfig :: FilePath -> IO User.User
+    loadUserConfig =
+      User.readUserConfig >=> \case
+        Left e -> Exit.withError (Input.renderError e)
+        Right u -> User.resolve u

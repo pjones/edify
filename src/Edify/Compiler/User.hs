@@ -15,11 +15,13 @@
 module Edify.Compiler.User
   ( UserF (..),
     User,
-    resolve,
     defaultUserConfigFile,
+    readUserConfig,
+    resolve,
   )
 where
 
+import qualified Edify.Input as Input
 import Edify.JSON
 import qualified Edify.Project.Config as Project
 import qualified System.Directory as Directory
@@ -36,7 +38,7 @@ data UserF (f :: Readiness) = User
   }
   deriving stock (Generic)
 
--- | FIXME: Write documentation for User
+-- | Resolved user configuration.
 --
 -- @since 0.5.0.0
 type User = UserF Resolved
@@ -55,13 +57,19 @@ instance Semigroup (UserF Parsed) where
 instance Monoid (UserF Parsed) where
   mempty = User mempty mempty
 
--- | FIXME: Write description for defaultUserConfigFile
+-- | Default file location for the user configuration.
 --
 -- @since 0.5.0.0
 defaultUserConfigFile :: MonadIO m => m FilePath
 defaultUserConfigFile =
   liftIO (Directory.getXdgDirectory Directory.XdgConfig "edify")
     <&> (</> "config.yml")
+
+-- | Read the user configuration file.
+--
+-- @since 0.5.0.0
+readUserConfig :: MonadIO m => FilePath -> m (Either Input.Error (UserF Parsed))
+readUserConfig = Input.decodeFromFile Input.ReadWithoutFingerprint
 
 -- | Resolve a 'UserF Parsed' value to a final 'UserF Identity' value.
 --

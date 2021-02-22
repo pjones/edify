@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 -- |
 --
 -- Copyright:
@@ -16,6 +18,7 @@ module Edify.Project
   ( ProjectConfig,
     Project (..),
     resolve,
+    defaultProjectConfigBytes,
     defaultProjectConfig,
     readProjectConfigFile,
     projectCommands,
@@ -47,6 +50,8 @@ where
 
 import Control.Lens (folded, (^.), (^..), _1, _2, _Just)
 import Control.Monad.Except (throwError)
+import qualified Data.FileEmbed as FileEmbed
+import qualified Data.Yaml as YAML
 import qualified Edify.Compiler.User as User
 import qualified Edify.Input as Input
 import Edify.JSON
@@ -62,11 +67,23 @@ import qualified System.Directory as Directory
 -- @since 0.5.0.0
 type ProjectConfig (f :: Readiness) = Config.ConfigF f :*: Inputs.InputsF f
 
+-- | The default configuration as a YAML encoded 'ByteString'.
+--
+-- @since 0.5.0.0
+defaultProjectConfigBytes :: ByteString
+defaultProjectConfigBytes =
+  $( FileEmbed.makeRelativeToProject "data/config/project.yml"
+       >>= FileEmbed.embedFile
+   )
+
 -- | The default project when one hasn't been configured.
 --
 -- @since 0.5.0.0
 defaultProjectConfig :: ProjectConfig Parsed
-defaultProjectConfig = Join (Config.defaultConfig, mempty)
+defaultProjectConfig =
+  fromRight
+    (error "impossible")
+    (YAML.decodeEither' defaultProjectConfigBytes)
 
 -- | Fully resolve and complete project configuration.
 --
@@ -110,10 +127,11 @@ resolve user cliTop cliInputs cliConfig = runExceptT $ do
 
   let userConfig = user ^. #userProjectConfig
       localConfig = local ^. _1
+      defConfig = defaultProjectConfig ^. _1
       localInputs = local ^. _2
 
   -- Resolve remaining components:
-  c <- Config.resolveConfig (cliConfig <> localConfig <> userConfig)
+  c <- Config.resolveConfig (cliConfig <> localConfig <> userConfig <> defConfig)
   i <- Inputs.resolveInputs (cliInputs <> localInputs)
 
   pure (Project c t i)

@@ -1,0 +1,44 @@
+# A target represents a document to build, along will all of the
+# required assets (i.e. images).
+#
+# Targets must specify a shell command that will be used to build the
+# final output document.   The command can use these 2 variables:
+#
+#  %i  The name of the generated Markdown file (input)
+#  %o  The name of a file that should be created by the command (output)
+targets:
+  # PDF handouts for students:
+  - name: handout
+    format: pdf
+    command:
+      pandoc --from=markdown+emoji
+             --pdf-engine=xelatex
+             --output=%o
+             --to=latex
+             --toc
+             --toc-depth=2
+             --top-level-division=chapter
+             --number-sections
+             %i
+
+  # PDF beamer slides without notes:
+  - name: slides
+    format: pdf
+    remove-divs: [ notes ]
+    command:
+      pandoc --from=markdown+emoji
+             --pdf-engine=xelatex
+             --output=%o
+             --to=beamer
+             --slide-level=3
+             --variable=classoption:aspectratio=43
+             %i
+
+# Directory where generated files are stored:
+output-directory: build
+
+# You can specify a list of files to build if none are given on the
+# command line using the `input-files' key:
+#
+# input-files:
+#   - path/to/file.md

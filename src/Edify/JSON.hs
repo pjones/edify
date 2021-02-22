@@ -96,7 +96,8 @@ instance
 -- | Join two types together so they work with the same JSON document.
 newtype (:*:) a b = Join
   {unJoin :: (a, b)}
-  deriving stock (Generic)
+  deriving stock (Generic, Show)
+  deriving newtype (Eq)
 
 instance Lens.Field1 (a :*: b) (a' :*: b) a a' where
   _1 = Lens.lens (fst . unJoin) (\(Join t) -> Join . (,snd t))

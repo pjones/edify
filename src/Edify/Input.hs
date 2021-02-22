@@ -22,6 +22,7 @@ module Edify.Input
     ReadMode (..),
     decodeFromFile,
     WriteMode (..),
+    encodeToFile',
     encodeToFile,
 
     -- * Error Handling
@@ -216,6 +217,34 @@ data WriteMode a
   = WriteFingerprintTo FilePath (a -> [Text])
   | WriteWithoutFingerprint
 
+-- | Encode a file to a 'LByteString' and write it to a file.
+--
+-- @since 0.5.0.0
+encodeToFile' ::
+  MonadIO m =>
+  -- | How to deal with fingerprints.
+  WriteMode a ->
+  -- | The file to write.
+  FilePath ->
+  -- | How to encode the value.
+  (a -> LByteString) ->
+  -- | The value to encode.
+  a ->
+  -- | Unit or error.
+  m (Either Error ())
+encodeToFile' mode file encode x = runExceptT $ do
+  whenM (liftIO (Dir.doesFileExist file)) $
+    throwError (FileWillBeOverritten file)
+
+  writeFileLBS file (encode x)
+
+  case mode of
+    WriteWithoutFingerprint -> pass
+    WriteFingerprintTo dir getCommands ->
+      let cmds = Fingerprint.generate (getCommands x)
+          cache = Fingerprint.cache file (cmds :: Fingerprint.Commands) mempty
+       in Fingerprint.write dir cache
+
 -- | Encode a value (JSON/YAML) then write it to a file.
 --
 -- @since 0.5.0.0
@@ -230,19 +259,7 @@ encodeToFile ::
   a ->
   -- | Unit or error.
   m (Either Error ())
-encodeToFile mode file x = runExceptT $ do
-  whenM (liftIO (Dir.doesFileExist file)) $
-    throwError (FileWillBeOverritten file)
-
-  let bytes = case FilePath.takeExtension file of
-        ".json" -> Aeson.encode x
-        _yaml -> toLazy (YAML.encode x)
-
-  writeFileLBS file bytes
-
-  case mode of
-    WriteWithoutFingerprint -> pass
-    WriteFingerprintTo dir getCommands ->
-      let cmds = Fingerprint.generate (getCommands x)
-          cache = Fingerprint.cache file (cmds :: Fingerprint.Commands) mempty
-       in Fingerprint.write dir cache
+encodeToFile mode file = encodeToFile' mode file $ \x ->
+  case FilePath.takeExtension file of
+    ".json" -> Aeson.encode x
+    _yaml -> toLazy (YAML.encode x)

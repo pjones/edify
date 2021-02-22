@@ -27,6 +27,8 @@ import qualified Edify.Text.Pretty as P
 data Error
   = -- | No input files were given.
     MissingInputFilesError
+  | -- | No targets were configured.
+    MissingTargetsError
   | -- | Errors triggered while reading configuration files.
     ConfigInputError Input.Error
   | -- | Unable to create a valid file extension from a target
@@ -45,6 +47,8 @@ renderError :: Error -> P.Doc P.AnsiStyle
 renderError = \case
   MissingInputFilesError ->
     P.reflow "no markdown files were given as input"
+  MissingTargetsError ->
+    P.reflow "project has no configured targets"
   ConfigInputError e ->
     P.fillSep
       [ P.reflow "project configuration",

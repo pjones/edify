@@ -74,11 +74,12 @@ main user Flags {..} = case flagsWhat of
     pwd <- Directory.getCurrentDirectory
     file <- FilePath.makeAbsoluteToDir pwd Project.defaultProjectConfigFile
 
-    Input.encodeToFile
+    Input.encodeToFile'
       ( Input.WriteFingerprintTo
           (user ^. #userCommandAllowDir)
           Project.projectCommands
       )
       file
+      (const (toLazy Project.defaultProjectConfigBytes))
       Project.defaultProjectConfig
       >>= either (Exit.withError . Input.renderError) pure

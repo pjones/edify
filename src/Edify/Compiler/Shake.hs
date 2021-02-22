@@ -54,12 +54,12 @@ data CommandSafety
   = RequireCommandFingerprints
   | UnsafeAllowAllCommands
 
--- | FIXME: Write documentation for Eval
+-- | Transformer stack for evaluating the 'Lang.Compiler' EDSL.
 --
 -- @since 0.5.0.0
 type Eval = ExceptT Lang.Error (StateT Eval.Runtime Shake.Action)
 
--- | FIXME: Write description for shake
+-- | Lift a Shake action.
 --
 -- @since 0.5.0.0
 shake :: Shake.Action a -> Eval a

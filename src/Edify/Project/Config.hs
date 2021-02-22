@@ -17,12 +17,12 @@ module Edify.Project.Config
     Config,
     SizeHints (..),
     defaultSizeHints,
-    defaultConfig,
     configFromCommandLine,
     resolveConfig,
   )
 where
 
+import Control.Monad.Except (throwError)
 import Edify.JSON
 import qualified Edify.Project.Error as Error
 import qualified Edify.Project.Target as Target
@@ -40,7 +40,7 @@ data SizeHints = SizeHints
     -- | Desired height.
     hintHeight :: Word
   }
-  deriving stock (Generic)
+  deriving stock (Generic, Eq, Show)
   deriving anyclass (SOP.Generic, SOP.HasDatatypeInfo)
   deriving (ToJSON, FromJSON) via GenericJSON SizeHints
 
@@ -92,20 +92,14 @@ deriving via (GenericJSON (ConfigF Parsed)) instance ToJSON (ConfigF Parsed)
 
 deriving via (GenericJSON (ConfigF Parsed)) instance FromJSON (ConfigF Parsed)
 
--- | FIXME: Write documentation for Config
+deriving instance Eq (ConfigF Parsed)
+
+deriving instance Show (ConfigF Parsed)
+
+-- | Resolved configurations.
 --
 -- @since 0.5.0.0
 type Config = ConfigF Resolved
-
--- | The default project when one hasn't been configured.
---
--- @since 0.5.0.0
-defaultConfig :: ConfigF Parsed
-defaultConfig =
-  mempty
-    { projectOutputDirectory = Just "build",
-      projectTargets = Just Target.defaultTargets
-    }
 
 -- | Parse project configuration on the command line.
 --
@@ -136,13 +130,16 @@ configFromCommandLine =
 -- | Resolve all values in a project configuration.
 --
 -- @since 0.5.0.0
-resolveConfig :: MonadIO m => ConfigF Parsed -> ExceptT Error.Error m (ConfigF Resolved)
+resolveConfig ::
+  MonadIO m =>
+  ConfigF Parsed ->
+  ExceptT Error.Error m (ConfigF Resolved)
 resolveConfig Config {..} = do
-  -- The list of targets is mandatory.  If missing we'll use the
-  -- default targets.
+  -- The list of targets is mandatory.
   targets <-
-    traverse Target.resolve $
-      fromMaybe Target.defaultTargets projectTargets
+    case projectTargets of
+      Nothing -> throwError Error.MissingTargetsError
+      Just targets -> traverse Target.resolve targets
 
   -- The directory where output files are stored.
   output <-

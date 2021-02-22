@@ -48,7 +48,7 @@ data Error
 
 deriving instance Exception Error
 
--- | FIXME: Write description for render
+-- | Render an 'Error' value.
 --
 -- @since 0.5.0.0
 render :: Project.Project -> Error -> P.Doc P.AnsiStyle

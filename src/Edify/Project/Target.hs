@@ -16,7 +16,6 @@ module Edify.Project.Target
   ( -- * Project Targets
     TargetF (..),
     Target,
-    defaultTargets,
     resolve,
 
     -- * Formats
@@ -45,7 +44,7 @@ data Format
     PDF
   | -- | Hyper Text Markup Language.
     HTML
-  deriving stock (Generic, Eq, Bounded, Enum)
+  deriving stock (Generic, Eq, Bounded, Enum, Show)
   deriving (ToJSON, FromJSON) via GenericJSON Format
 
 -- | Generate a file extension for the given 'Project.Format'.
@@ -90,6 +89,10 @@ deriving via (GenericJSON (TargetF Parsed)) instance ToJSON (TargetF Parsed)
 
 deriving via (GenericJSON (TargetF Parsed)) instance FromJSON (TargetF Parsed)
 
+deriving instance Eq (TargetF Parsed)
+
+deriving instance Show (TargetF Parsed)
+
 -- | A fully resolved 'TargetF'.
 --
 -- @since 0.5.0.0
@@ -110,71 +113,6 @@ resolveTargetExtension Target {..} =
         >>> Text.words
         >>> listToMaybe
         >>> fmap (FilePath.Ext . Text.toLower)
-
--- | Default targets if none are given.
---
--- @since 0.5.0.0
-defaultTargets :: NonEmpty (TargetF Parsed)
-defaultTargets =
-  fromList
-    [ Target
-        { targetName = "handout",
-          targetFileExtension = Nothing,
-          targetFormat = PDF,
-          targetRemoveDivs = Nothing,
-          targetCommand =
-            command
-              ( pandoc
-                  <> [ "--to=latex",
-                       "--toc",
-                       "--toc-depth=2",
-                       "--top-level-division=chapter",
-                       "--number-sections",
-                       "%i"
-                     ]
-              )
-        },
-      Target
-        { targetName = "slides",
-          targetFileExtension = Nothing,
-          targetFormat = PDF,
-          targetRemoveDivs = Nothing,
-          targetCommand =
-            command
-              ( pandoc
-                  <> [ "--to=beamer",
-                       "--slide-level=3",
-                       "--variable=classoption:aspectratio=43",
-                       "%i"
-                     ]
-              )
-        },
-      Target
-        { targetName = "webpage",
-          targetFileExtension = Nothing,
-          targetFormat = HTML,
-          targetRemoveDivs = Nothing,
-          targetCommand =
-            command
-              ( pandoc
-                  <> [ "--to=html",
-                       "--standalone",
-                       "%i"
-                     ]
-              )
-        }
-    ]
-  where
-    command :: [Text] -> Text
-    command = Text.intercalate " "
-
-    pandoc :: [Text]
-    pandoc =
-      [ "pandoc",
-        "--from=markdown",
-        "--filter=pandoc-citeproc",
-        "--output=%o"
-      ]
 
 -- | Resolve a 'Target' to its final value.
 --

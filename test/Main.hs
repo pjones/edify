@@ -18,6 +18,7 @@ module Main
 where
 
 import qualified CompilerTest
+import qualified Edify.ProjectTest as ProjectTest
 import qualified MarkdownTest
 import qualified NarrowTest
 import Test.Tasty
@@ -28,7 +29,8 @@ main = do
     sequence
       [ NarrowTest.main,
         MarkdownTest.main,
-        CompilerTest.main
+        CompilerTest.main,
+        ProjectTest.main
       ]
 
   defaultMain (testGroup "Tests" tests)

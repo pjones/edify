@@ -38,7 +38,7 @@ import qualified Options.Applicative as Opt
 import qualified System.Directory as Directory
 import qualified System.PosixCompat as Posix
 
--- | FIXME: Write documentation for ProjectInputsF (f :: Readiness)
+-- | Input files for a project.
 --
 -- @since 0.5.0.0
 newtype InputsF (f :: Readiness) = Inputs
@@ -64,7 +64,11 @@ deriving via (GenericJSON (InputsF Parsed)) instance ToJSON (InputsF Parsed)
 
 deriving via (GenericJSON (InputsF Parsed)) instance FromJSON (InputsF Parsed)
 
--- | FIXME: Write documentation for Inputs
+deriving instance Eq (InputsF Parsed)
+
+deriving instance Show (InputsF Parsed)
+
+-- | Resolved inputs.
 --
 -- @since 0.5.0.0
 type Inputs = InputsF Resolved
@@ -86,7 +90,7 @@ inputsFromCommandLine =
             )
       )
 
--- | FIXME: Write documentation for TopLevelF
+-- | Top-level directory information.
 --
 -- @since 0.5.0.0
 data TopLevelF (f :: Readiness) = TopLevel
@@ -119,12 +123,12 @@ deriving via
   instance
     FromJSON (TopLevelF Parsed)
 
--- | FIXME: Write documentation for TopLevel
+-- | Resolved directory information.
 --
 -- @since 0.5.0.0
 type TopLevel = TopLevelF Resolved
 
--- | FIXME: Write description for topLevelFromCommandLine
+-- | Parse top-level directory information from the command line.
 --
 -- @since 0.5.0.0
 topLevelFromCommandLine :: Opt.Parser (TopLevelF Parsed)
