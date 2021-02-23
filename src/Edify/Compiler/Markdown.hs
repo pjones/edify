@@ -23,15 +23,15 @@ import qualified Data.Text as Text
 import qualified Data.Text.Lazy as LText
 import Edify.Compiler.Lang (Compiler)
 import qualified Edify.Compiler.Lang as C
-import qualified Edify.Format as Format
-import Edify.Input (Input)
-import qualified Edify.Input as Input
 import qualified Edify.Markdown.AST as AST
 import Edify.Markdown.Attributes (Attributes)
 import qualified Edify.Markdown.Attributes as Attrs
 import Edify.Markdown.Fence (Rewrite (..))
 import qualified Edify.Markdown.Fence as Fence
 import qualified Edify.Markdown.Include as Include
+import Edify.System.Input (Input)
+import qualified Edify.System.Input as Input
+import qualified Edify.Text.Format as Format
 
 -- | Compile the given 'Input' as Markdown.
 --

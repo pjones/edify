@@ -38,8 +38,8 @@ import Control.Monad.Free.Church (F, MonadFree, liftF)
 import Control.Monad.Free.TH (makeFree)
 import qualified Data.CaseInsensitive as CaseInsensitive
 import Edify.Compiler.Error (Error (..))
-import Edify.Input (Input)
 import qualified Edify.Markdown.Attributes as Attrs
+import Edify.System.Input (Input)
 import qualified Edify.Text.Indent as Indent
 import Edify.Text.Narrow (Token)
 

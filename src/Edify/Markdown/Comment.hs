@@ -21,7 +21,7 @@ where
 
 import qualified Data.Attoparsec.Text as Atto
 import qualified Data.Text.Lazy.Builder as Builder
-import Edify.JSON
+import Edify.Text.JSON
 
 -- | HTML comments inside Markdown documents.
 --

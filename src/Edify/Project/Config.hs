@@ -23,10 +23,10 @@ module Edify.Project.Config
 where
 
 import Control.Monad.Except (throwError)
-import Edify.JSON
 import qualified Edify.Project.Error as Error
 import qualified Edify.Project.Target as Target
 import Edify.Text.Indent (Tabstop (..), defaultTabstop)
+import Edify.Text.JSON
 import qualified Generics.SOP as SOP
 import qualified Options.Applicative as Opt
 import qualified System.Directory as Directory

@@ -60,8 +60,8 @@ import qualified Data.Text as Text
 import qualified Data.Text.Lazy as LText
 import qualified Data.Text.Lazy.Builder as LTB
 import qualified Data.Text.Read as Text
-import qualified Edify.HTML.Entities as HTML
-import Edify.JSON
+import qualified Edify.Markdown.Entities as HTML
+import Edify.Text.JSON
 import Text.Printf (printf)
 
 -- | A attribute name according to HTML.

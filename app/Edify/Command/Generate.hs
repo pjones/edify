@@ -20,11 +20,11 @@ module Edify.Command.Generate
 where
 
 import Control.Lens ((^.))
-import qualified Edify.Compiler.FilePath as FilePath
 import qualified Edify.Compiler.User as User
-import qualified Edify.Input as Input
 import qualified Edify.Project as Project
 import qualified Edify.System.Exit as Exit
+import qualified Edify.System.FilePath as FilePath
+import qualified Edify.System.Input as Input
 import qualified Options.Applicative as Opt
 import qualified System.Directory as Directory
 

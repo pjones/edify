@@ -23,8 +23,8 @@ import qualified Edify.Command.Audit as Audit
 import qualified Edify.Command.Build as Build
 import qualified Edify.Command.Generate as Generate
 import qualified Edify.Compiler.User as User
-import qualified Edify.Input as Input
 import qualified Edify.System.Exit as Exit
+import qualified Edify.System.Input as Input
 import qualified Options.Applicative as Options
 import Paths_edify (version)
 import qualified System.Directory as Directory

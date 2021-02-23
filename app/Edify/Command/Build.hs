@@ -26,9 +26,9 @@ import Data.Generics.Labels ()
 import Data.Generics.Product (field')
 import qualified Edify.Compiler.Shake as Shake
 import qualified Edify.Compiler.User as User
-import Edify.JSON
 import qualified Edify.Project as Project
 import qualified Edify.System.Exit as Exit
+import Edify.Text.JSON
 import qualified Options.Applicative as Opt
 
 -- | Options that affect builds.

@@ -22,9 +22,9 @@ where
 import qualified Data.Attoparsec.Text as Atto
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy.Builder as LTB
-import Edify.JSON
 import Edify.Markdown.Attributes
 import Edify.Markdown.Common (endOfLineP, nonindentSpaces)
+import Edify.Text.JSON
 
 -- | Information about a Markdown heading.
 --

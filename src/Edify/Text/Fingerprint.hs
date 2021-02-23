@@ -12,7 +12,7 @@
 --   contained in the LICENSE file.
 --
 -- License: Apache-2.0
-module Edify.Compiler.Fingerprint
+module Edify.Text.Fingerprint
   ( Fingerprint (..),
     Fingerprinted (..),
     Status (..),
@@ -32,9 +32,9 @@ import qualified Data.ByteString.Base16 as Base16
 import Data.Generics.Labels ()
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
-import Edify.JSON
+import Edify.System.FilePath ((</>))
+import Edify.Text.JSON
 import qualified System.Directory as Directory
-import System.FilePath ((</>))
 
 -- | A fingerprint for a file.
 --

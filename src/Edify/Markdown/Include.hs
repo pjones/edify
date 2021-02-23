@@ -25,8 +25,8 @@ import qualified Data.Attoparsec.Text as Atto
 import qualified Data.Text as Text
 import Data.Text.Lazy.Builder (Builder)
 import qualified Data.Text.Lazy.Builder as Builder
-import Edify.JSON
 import Edify.Markdown.Common (endOfLineP, nonindentSpaces)
+import Edify.Text.JSON
 import Edify.Text.Narrow (Token (..))
 
 -- | Details about an inclusion marker.

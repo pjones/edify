@@ -32,10 +32,10 @@ import qualified Data.HashSet as HashSet
 import Data.List ((\\))
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import qualified Edify.Compiler.FilePath as FilePath
-import Edify.JSON
 import qualified Edify.Markdown.Attributes as Attrs
 import Edify.Project.Error
+import qualified Edify.System.FilePath as FilePath
+import Edify.Text.JSON
 import qualified Edify.Text.Placeholders as Placeholders
 
 -- | Output formats.

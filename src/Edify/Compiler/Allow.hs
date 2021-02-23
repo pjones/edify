@@ -22,8 +22,8 @@ where
 import Data.Functor.Foldable (cata)
 import qualified Edify.Compiler.Audit as Audit
 import qualified Edify.Compiler.Error as Error
-import qualified Edify.Compiler.Fingerprint as Fingerprint
 import qualified Edify.System.Exit as Exit
+import qualified Edify.Text.Fingerprint as Fingerprint
 import qualified System.Directory as Directory
 
 -- | Generate allow files for the given input files.

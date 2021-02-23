@@ -120,34 +120,34 @@ library
     Edify.Compiler.Cycle
     Edify.Compiler.Error
     Edify.Compiler.Eval
-    Edify.Compiler.FilePath
-    Edify.Compiler.Fingerprint
     Edify.Compiler.Lang
     Edify.Compiler.Markdown
     Edify.Compiler.Shake
     Edify.Compiler.Stack
     Edify.Compiler.User
-    Edify.Format
-    Edify.Format.Markdown
-    Edify.HTML.Entities
-    Edify.Input
-    Edify.JSON
     Edify.Markdown.AST
     Edify.Markdown.Attributes
     Edify.Markdown.Comment
     Edify.Markdown.Common
+    Edify.Markdown.Entities
     Edify.Markdown.Fence
     Edify.Markdown.Heading
     Edify.Markdown.Image
     Edify.Markdown.Include
     Edify.Markdown.Link
+    Edify.Markdown.Narrow
     Edify.Project
     Edify.Project.Config
     Edify.Project.Error
     Edify.Project.Inputs
     Edify.Project.Target
     Edify.System.Exit
+    Edify.System.FilePath
+    Edify.System.Input
+    Edify.Text.Fingerprint
+    Edify.Text.Format
     Edify.Text.Indent
+    Edify.Text.JSON
     Edify.Text.Narrow
     Edify.Text.Placeholders
     Edify.Text.Pretty

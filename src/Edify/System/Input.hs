@@ -12,7 +12,7 @@
 --   contained in the LICENSE file.
 --
 -- License: Apache-2.0
-module Edify.Input
+module Edify.System.Input
   ( Input (..),
     filePathToInput,
     filePathFromInput,
@@ -37,7 +37,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy.IO as LText
 import qualified Data.Yaml as YAML
-import qualified Edify.Compiler.Fingerprint as Fingerprint
+import qualified Edify.Text.Fingerprint as Fingerprint
 import qualified Edify.Text.Pretty as P
 import System.Directory (getCurrentDirectory)
 import qualified System.Directory as Dir

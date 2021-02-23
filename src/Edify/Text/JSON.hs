@@ -12,7 +12,7 @@
 --   contained in the LICENSE file.
 --
 -- License: Apache-2.0
-module Edify.JSON
+module Edify.Text.JSON
   ( GenericJSON (..),
     RecursiveJSON (..),
     Aeson.ToJSON,

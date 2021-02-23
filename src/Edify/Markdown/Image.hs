@@ -22,9 +22,9 @@ where
 
 import qualified Data.Attoparsec.Text as Atto
 import qualified Data.Text.Lazy.Builder as LTB
-import Edify.JSON
 import Edify.Markdown.Common (matchingBracketP)
 import Edify.Markdown.Link (Destination (..), linkDestP, linkDestT)
+import Edify.Text.JSON
 
 -- | A reference to an image.
 --

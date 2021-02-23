@@ -27,10 +27,10 @@ where
 import Control.Lens ((%=), (.=))
 import qualified Edify.Compiler.Cycle as Cycle
 import qualified Edify.Compiler.Error as Error
-import qualified Edify.Compiler.FilePath as FilePath
-import qualified Edify.Compiler.Fingerprint as Fingerprint
 import qualified Edify.Compiler.Stack as Stack
-import qualified Edify.Input as Input
+import qualified Edify.System.FilePath as FilePath
+import qualified Edify.System.Input as Input
+import qualified Edify.Text.Fingerprint as Fingerprint
 
 -- | Compiler evaluation state.
 --

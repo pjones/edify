@@ -32,15 +32,15 @@ import Data.Generics.Labels ()
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Edify.Compiler.Error as Error
 import qualified Edify.Compiler.Eval as Eval
-import qualified Edify.Compiler.Fingerprint as Fingerprint
 import qualified Edify.Compiler.Lang as Lang
 import qualified Edify.Compiler.Markdown as Markdown
 import qualified Edify.Compiler.Stack as Stack
-import qualified Edify.Input as Input
-import Edify.JSON
 import qualified Edify.Project as Project
 import qualified Edify.System.Exit as Exit
+import qualified Edify.System.Input as Input
+import qualified Edify.Text.Fingerprint as Fingerprint
 import qualified Edify.Text.Indent as Indent
+import Edify.Text.JSON
 import qualified Edify.Text.Pretty as P
 import qualified System.Directory as Directory
 import qualified System.FilePath as FilePath

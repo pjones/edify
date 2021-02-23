@@ -33,13 +33,13 @@ import Data.Char (isSpace)
 import qualified Data.Char as Char
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy.Builder as LTB
-import Edify.JSON
 import Edify.Markdown.Common
   ( endOfLineP,
     matchingBracketP,
     quotedTextP,
     quotedTextT,
   )
+import Edify.Text.JSON
 
 -- | Records the space between a link's text and reference label.
 --

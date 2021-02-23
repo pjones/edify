@@ -30,10 +30,10 @@ module Edify.Project.Inputs
 where
 
 import Control.Monad.Except (throwError)
-import Edify.Compiler.FilePath ((</>))
-import qualified Edify.Compiler.FilePath as FilePath
-import Edify.JSON
 import qualified Edify.Project.Error as Error
+import Edify.System.FilePath ((</>))
+import qualified Edify.System.FilePath as FilePath
+import Edify.Text.JSON
 import qualified Options.Applicative as Opt
 import qualified System.Directory as Directory
 import qualified System.PosixCompat as Posix

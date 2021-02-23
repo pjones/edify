@@ -12,7 +12,7 @@
 --   contained in the LICENSE file.
 --
 -- License: Apache-2.0
-module Edify.Format.Markdown
+module Edify.Markdown.Narrow
   ( Chunk (..),
     Heading (..),
     toChunks,
@@ -30,9 +30,9 @@ import qualified Data.CaseInsensitive as CaseInsensitive
 import qualified Data.Text.Lazy.Builder as LTB
 import qualified Data.Text.Prettyprint.Doc as PP
 import qualified Data.Text.Prettyprint.Doc.Util as PP
-import Edify.JSON
 import Edify.Markdown.Attributes
 import Edify.Markdown.Heading
+import Edify.Text.JSON
 import Edify.Text.Narrow (Token (..))
 
 -- | Errors that may occur.

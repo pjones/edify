@@ -20,10 +20,10 @@ module Edify.Compiler.Error
 where
 
 import Control.Lens ((^.))
-import qualified Edify.Format as Format
-import qualified Edify.Input as Input
 import qualified Edify.Markdown.Fence as Fence
 import qualified Edify.Project as Project
+import qualified Edify.System.Input as Input
+import qualified Edify.Text.Format as Format
 import qualified Edify.Text.Pretty as P
 
 -- | Errors that might occur during a rewrite.

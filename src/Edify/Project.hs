@@ -53,12 +53,12 @@ import Control.Monad.Except (throwError)
 import qualified Data.FileEmbed as FileEmbed
 import qualified Data.Yaml as YAML
 import qualified Edify.Compiler.User as User
-import qualified Edify.Input as Input
-import Edify.JSON
 import qualified Edify.Project.Config as Config
 import qualified Edify.Project.Error as Error
 import qualified Edify.Project.Inputs as Inputs
 import qualified Edify.Project.Target as Target
+import qualified Edify.System.Input as Input
+import Edify.Text.JSON
 import qualified System.Directory as Directory
 
 -- | A hybrid configuration and input file list.  This is the

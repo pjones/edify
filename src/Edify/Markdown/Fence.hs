@@ -42,11 +42,11 @@ import qualified Data.HashSet as HashSet
 import Data.Semigroup (Max (..))
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy.Builder as LTB
-import Edify.JSON
 import Edify.Markdown.Attributes (Attributes)
 import qualified Edify.Markdown.Attributes as Attrs
 import Edify.Markdown.Common (endOfLineP, skipHorzSpace, wholelineP)
 import qualified Edify.Text.Indent as Indent
+import Edify.Text.JSON
 
 -- | Fence block proprieties.
 --

@@ -31,7 +31,6 @@ import qualified Data.Attoparsec.Text as Atto
 import Data.Functor.Foldable (Fix (..), cata)
 import Data.Generics.Labels ()
 import qualified Data.Text.Lazy.Builder as LTB
-import Edify.JSON
 import Edify.Markdown.Attributes (Attributes)
 import qualified Edify.Markdown.Comment as Comment
 import Edify.Markdown.Common (endOfLineP, wholelineP)
@@ -46,6 +45,7 @@ import qualified Edify.Markdown.Include as Include
 import Edify.Markdown.Link (Link)
 import qualified Edify.Markdown.Link as Link
 import qualified Edify.Text.Indent as Indent
+import Edify.Text.JSON
 
 -- | Inline elements in Markdown.
 --

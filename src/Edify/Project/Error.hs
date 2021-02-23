@@ -18,8 +18,8 @@ module Edify.Project.Error
   )
 where
 
-import qualified Edify.Compiler.FilePath as FilePath
-import qualified Edify.Input as Input
+import qualified Edify.System.FilePath as FilePath
+import qualified Edify.System.Input as Input
 import qualified Edify.Text.Pretty as P
 
 -- | Error that may occur while resolving project configuration.

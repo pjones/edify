@@ -22,8 +22,8 @@ where
 import Control.Lens ((^.))
 import qualified Edify.Compiler.Audit as Audit
 import qualified Edify.Compiler.User as User
-import Edify.JSON
 import qualified Edify.Project.Inputs as Project
+import Edify.Text.JSON
 import qualified Options.Applicative as Opt
 import qualified System.Directory as Directory
 

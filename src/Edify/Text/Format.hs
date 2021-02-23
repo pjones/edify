@@ -12,7 +12,7 @@
 --   contained in the LICENSE file.
 --
 -- License: Apache-2.0
-module Edify.Format
+module Edify.Text.Format
   ( Format (..),
     Token (..),
     defaultFormat,
@@ -28,8 +28,8 @@ where
 
 import qualified Data.Text.Prettyprint.Doc as PP
 import qualified Data.Text.Prettyprint.Doc.Util as PP
-import qualified Edify.Format.Markdown as Markdown
-import qualified Edify.Input as Input
+import qualified Edify.Markdown.Narrow as Markdown
+import qualified Edify.System.Input as Input
 import Edify.Text.Narrow (Token (..))
 import qualified Edify.Text.Narrow as Narrow
 import System.FilePath (takeExtension)

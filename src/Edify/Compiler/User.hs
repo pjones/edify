@@ -21,9 +21,9 @@ module Edify.Compiler.User
   )
 where
 
-import qualified Edify.Input as Input
-import Edify.JSON
 import qualified Edify.Project.Config as Project
+import qualified Edify.System.Input as Input
+import Edify.Text.JSON
 import qualified System.Directory as Directory
 import System.FilePath ((</>))
 
