@@ -111,7 +111,7 @@ resolveTargetExtension Target {..} =
   where
     convert :: Text -> Maybe FilePath.Ext
     convert =
-      Text.filter Char.isAlphaNum
+      Text.filter (\c -> Char.isAlphaNum c || Char.isSpace c)
         >>> Text.words
         >>> listToMaybe
         >>> fmap (FilePath.Ext . Text.toLower)
