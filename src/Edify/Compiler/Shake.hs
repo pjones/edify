@@ -271,6 +271,10 @@ markdownRule user project target cmdmode assets =
     action :: FilePath -> FilePath -> Shake.Action ()
     action input output = do
       let compiler = Markdown.compile (Input.FromFile input)
+
+      -- Depend on the project configuration:
+      whenJust (project ^. #projectReadFrom) (Shake.need . one)
+
       ast <-
         eval user project target cmdmode assets compiler
           & runExceptT
@@ -320,8 +324,6 @@ rules ::
   Asset.AssetMap ->
   Shake.Rules ()
 rules user project cmdmode assets = do
-  -- FIXME: All generated rules should depend on the project
-  -- configuration file!
   assetRules project assets
 
   for_ (project ^. #projectConfig . #projectTargets) $ \target -> do

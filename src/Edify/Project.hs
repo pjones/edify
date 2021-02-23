@@ -91,7 +91,8 @@ defaultProjectConfig =
 data Project = Project
   { projectConfig :: Config.ConfigF Resolved,
     projectTopLevel :: Inputs.TopLevelF Resolved,
-    projectInputs :: Inputs.InputsF Resolved
+    projectInputs :: Inputs.InputsF Resolved,
+    projectReadFrom :: Maybe FilePath
   }
   deriving stock (Generic)
 
@@ -119,7 +120,7 @@ resolve user cliTop cliInputs cliConfig = runExceptT $ do
   t <- Inputs.resolveTopLevel cliTop
 
   -- Try to read a local project configuration file:
-  local <-
+  (local, path) <-
     readProjectConfigFile
       (user ^. #userCommandAllowDir)
       (t ^. #projectDirectory)
@@ -134,7 +135,7 @@ resolve user cliTop cliInputs cliConfig = runExceptT $ do
   c <- Config.resolveConfig (cliConfig <> localConfig <> userConfig <> defConfig)
   i <- Inputs.resolveInputs (cliInputs <> localInputs)
 
-  pure (Project c t i)
+  pure (Project c t i path)
 
 -- | Try to read a project-specific configuration file.
 --
@@ -145,10 +146,10 @@ readProjectConfigFile ::
   FilePath ->
   -- | The project top-level directory.
   FilePath ->
-  -- | The loaded configuration or an error.
-  m (Either Input.Error (ProjectConfig Parsed))
+  -- | The loaded configuration and the file it was read from.
+  m (Either Input.Error (ProjectConfig Parsed, Maybe FilePath))
 readProjectConfigFile fpdir prjdir =
-  let def = Right defaultProjectConfig
+  let def = Right (defaultProjectConfig, Nothing)
    in liftIO (Directory.doesDirectoryExist prjdir)
         >>= bool
           (pure def)
@@ -159,6 +160,7 @@ readProjectConfigFile fpdir prjdir =
                 Input.decodeFromFile
                   (Input.OnlyReadApprovedFiles fpdir projectCommands)
                   path
+                  <&> second (,Just path)
           )
 
 -- | Get all commands from all targets.
