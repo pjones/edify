@@ -17,6 +17,7 @@ module Edify.Project.Target
     TargetF (..),
     Target,
     resolve,
+    targetsByFileExtension,
 
     -- * Formats
     Format (..),
@@ -29,6 +30,7 @@ import qualified Data.CaseInsensitive as CaseInsensitive
 import qualified Data.Char as Char
 import qualified Data.HashSet as HashSet
 import Data.List ((\\))
+import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import qualified Edify.Compiler.FilePath as FilePath
 import Edify.JSON
@@ -113,6 +115,27 @@ resolveTargetExtension Target {..} =
         >>> Text.words
         >>> listToMaybe
         >>> fmap (FilePath.Ext . Text.toLower)
+
+-- | Find duplicate targets by comparing their file extensions.
+--
+-- @since 0.5.0.0
+targetsByFileExtension ::
+  -- | List of targets to test for duplicates.
+  NonEmpty Target ->
+  -- | If a duplicate is found, it is returned in a 'Left', otherwise
+  -- all file extension mappings are returned in 'Right'.
+  Either (Target, Target) (Map FilePath.Ext Target)
+targetsByFileExtension = foldr go (Right mempty)
+  where
+    go ::
+      Target ->
+      Either (Target, Target) (Map FilePath.Ext Target) ->
+      Either (Target, Target) (Map FilePath.Ext Target)
+    go target = either Left $ \targets ->
+      let ext = targetFileExtension target
+       in case Map.lookup ext targets of
+            Just other -> Left (other, target)
+            Nothing -> Right (Map.insert ext target targets)
 
 -- | Resolve a 'Target' to its final value.
 --

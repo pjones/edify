@@ -49,7 +49,8 @@ import qualified System.FilePath as FilePath
 --
 -- @since 0.5.0.0
 newtype Ext = Ext Text
-  deriving newtype (Eq, Hashable)
+  deriving stock (Generic, Show)
+  deriving newtype (Eq, Ord, Hashable)
 
 instance Semigroup Ext where
   (<>) (Ext x) (Ext y) = Ext (x <> "." <> y)

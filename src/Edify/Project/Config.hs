@@ -141,6 +141,15 @@ resolveConfig Config {..} = do
       Nothing -> throwError Error.MissingTargetsError
       Just targets -> traverse Target.resolve targets
 
+  case Target.targetsByFileExtension targets of
+    Right _targetMap -> pass
+    Left (dup0, dup1) ->
+      throwError $
+        Error.TargetWithDuplicateFileExtensionError
+          (Target.targetName dup0)
+          (Target.targetName dup1)
+          (Target.targetFileExtension dup0)
+
   -- The directory where output files are stored.
   output <-
     fromMaybe "build" projectOutputDirectory

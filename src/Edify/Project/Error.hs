@@ -18,6 +18,7 @@ module Edify.Project.Error
   )
 where
 
+import qualified Edify.Compiler.FilePath as FilePath
 import qualified Edify.Input as Input
 import qualified Edify.Text.Pretty as P
 
@@ -34,6 +35,8 @@ data Error
   | -- | Unable to create a valid file extension from a target
     -- configuration.
     InvalidTargetFileExtensionError Text
+  | -- | Multiple targets have the same file extension.
+    TargetWithDuplicateFileExtensionError Text Text FilePath.Ext
   | -- | Target command format string can't be parsed.
     TargetCommandInvalidFormatError Text String
   | -- | Target command format string contains invalid variables.
@@ -59,6 +62,16 @@ renderError = \case
       [ P.reflow "unable to translate target name into a valid file extension:",
         P.dquotes (P.red (P.reflow text)),
         P.reflow "cannot be made into a valid file extension."
+      ]
+  TargetWithDuplicateFileExtensionError name0 name1 (FilePath.Ext ext) ->
+    P.fillSep
+      [ "the",
+        P.dquotes (P.yellow $ P.reflow name0),
+        P.reflow "target has a file extension",
+        P.parens (P.dquotes $ P.red $ P.reflow ext),
+        P.reflow "that matches another target",
+        P.parens (P.dquotes $ P.green $ P.reflow name1) <> ".",
+        P.reflow "You may need to set the extension manually."
       ]
   TargetCommandInvalidFormatError cmd msg ->
     P.fillSep
