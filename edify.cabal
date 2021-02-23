@@ -165,6 +165,7 @@ executable edify
 
   other-modules:   Paths_edify
   autogen-modules: Paths_edify
+  ghc-options:     -threaded -rtsopts
   build-depends:   edify
 
 ------------------------------------------------------------------------------

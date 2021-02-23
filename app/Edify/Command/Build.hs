@@ -35,7 +35,7 @@ import qualified Options.Applicative as Opt
 --
 -- @since 0.5.0.0
 data Flags = Flags
-  { flagsCommandSafety :: Shake.CommandSafety,
+  { flagsBuildOptions :: Shake.Options,
     flagsOnlyTargets :: Maybe (NonEmpty Text),
     flagsProjectConfig :: Project.ConfigF Parsed,
     flagsProjectTopLevel :: Project.TopLevelF Parsed,
@@ -51,15 +51,7 @@ desc = ("Build one or more projects", flags)
     flags :: Opt.Parser Flags
     flags =
       Flags
-        <$> Opt.flag
-          Shake.RequireCommandFingerprints
-          Shake.UnsafeAllowAllCommands
-          ( mconcat
-              [ Opt.long "unsafe-allow-commands",
-                Opt.help "Disable safety features and run all commands",
-                Opt.hidden
-              ]
-          )
+        <$> buildFlags
         <*> optional
           ( fromList
               <$> some
@@ -76,6 +68,29 @@ desc = ("Build one or more projects", flags)
         <*> Project.topLevelFromCommandLine
         <*> Project.inputsFromCommandLine
 
+    buildFlags :: Opt.Parser Shake.Options
+    buildFlags =
+      Shake.Options
+        <$> Opt.flag
+          Shake.RequireCommandFingerprints
+          Shake.UnsafeAllowAllCommands
+          ( mconcat
+              [ Opt.long "unsafe-allow-commands",
+                Opt.help "Disable safety features and run all commands",
+                Opt.hidden
+              ]
+          )
+        <*> Opt.option
+          Opt.auto
+          ( mconcat
+              [ Opt.long "jobs",
+                Opt.short 'j',
+                Opt.value 0,
+                Opt.metavar "NUM",
+                Opt.help "Number of jobs to run in parallel"
+              ]
+          )
+
 -- | Execute a build.
 --
 -- @since 0.5.0.0
@@ -85,7 +100,7 @@ main user Flags {..} =
     Nothing ->
       Exit.withError "the --target option does not match any project target"
     Just project ->
-      Shake.main user project flagsCommandSafety
+      Shake.main user project flagsBuildOptions
   where
     resolve :: IO Project.Project
     resolve =

@@ -15,7 +15,8 @@
 --
 -- Interpreter that produces rules for the Shake build system.
 module Edify.Compiler.Shake
-  ( CommandSafety (..),
+  ( Options (..),
+    CommandSafety (..),
     eval,
     rules,
     main,
@@ -44,6 +45,7 @@ import qualified Edify.Input as Input
 import qualified Edify.Markdown.AST as AST
 import qualified Edify.Project as Project
 import qualified Edify.System.Exit as Exit
+import qualified GHC.Conc as GHC
 import qualified Prettyprinter.Render.Terminal as PP
 import qualified System.Directory as Directory
 
@@ -53,6 +55,17 @@ import qualified System.Directory as Directory
 data CommandSafety
   = RequireCommandFingerprints
   | UnsafeAllowAllCommands
+
+-- | Options that control Shake builds.
+--
+-- @since 0.5.0.0
+data Options = Options
+  { -- | How to deal with shell commands and fingerprints.
+    optionsCommandSafety :: CommandSafety,
+    -- | How many threads to use (parallel jobs).  A value of @0@
+    -- means to use half of the available CPU cores.
+    optionsThreads :: Int
+  }
 
 -- | Transformer stack for evaluating the 'Lang.Compiler' EDSL.
 --
@@ -346,21 +359,31 @@ rules user project cmdmode assets = do
 main ::
   User.User ->
   Project.Project ->
-  CommandSafety ->
+  Options ->
   IO ()
-main user project cmdmode = (`catch` onError) $ do
+main user project Options {..} = (`catch` onError) $ do
+  jobs <-
+    if optionsThreads >= 1
+      then pure optionsThreads
+      else do
+        procs <- GHC.getNumProcessors
+        pure (max 1 (procs `div` 2))
+
+  let sopts = shakeOptions jobs
+
   (_, after) <- Shake.shakeWithDatabase
-    shakeOptions
-    (rules user project cmdmode Asset.assets)
+    sopts
+    (rules user project optionsCommandSafety Asset.assets)
     $ \db -> do
       Shake.shakeOneShotDatabase db
       Shake.shakeRunDatabase db []
-  Shake.shakeRunAfter shakeOptions after
+  Shake.shakeRunAfter sopts after
   where
-    shakeOptions :: Shake.ShakeOptions
-    shakeOptions =
+    shakeOptions :: Int -> Shake.ShakeOptions
+    shakeOptions jobs =
       Shake.shakeOptions
-        { Shake.shakeFiles = project ^. #projectConfig . #projectOutputDirectory
+        { Shake.shakeFiles = project ^. #projectConfig . #projectOutputDirectory,
+          Shake.shakeThreads = jobs
         }
 
     onError :: Shake.ShakeException -> IO a
