@@ -28,8 +28,8 @@ import Control.Lens ((^.))
 import Control.Monad.Except (throwError)
 import qualified Control.Monad.Free.Church as Free
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Set as Set
 import qualified Data.Text.Lazy.Builder as Builder
-import qualified Data.Text.Prettyprint.Doc as PP
 import qualified Development.Shake as Shake
 import qualified Development.Shake.Database as Shake
 import qualified Edify.Compiler.Asset as Asset
@@ -45,9 +45,10 @@ import qualified Edify.System.Exit as Exit
 import qualified Edify.System.FilePath as FilePath
 import qualified Edify.System.Input as Input
 import qualified Edify.Text.Format as Format
+import qualified Edify.Text.Pretty as P
 import qualified GHC.Conc as GHC
-import qualified Prettyprinter.Render.Terminal as PP
 import qualified System.Directory as Directory
+import qualified System.FSNotify as FSNotify
 
 -- | Safety controls around running shell commands.
 --
@@ -64,7 +65,9 @@ data Options = Options
     optionsCommandSafety :: CommandSafety,
     -- | How many threads to use (parallel jobs).  A value of @0@
     -- means to use half of the available CPU cores.
-    optionsThreads :: Int
+    optionsThreads :: Int,
+    -- | If 'True', automatically rebuild when files are changed.
+    optionsWatch :: Bool
   }
 
 -- | Transformer stack for evaluating the 'Lang.Compiler' EDSL.
@@ -353,6 +356,88 @@ rules user project cmdmode assets = do
               `FilePath.replaceExt` (targetE <> format)
        in Shake.want [output]
 
+-- | Convert a Shake exception into an error message to display to the user.
+--
+-- @since 0.5.0.0
+exceptionToDoc :: Project.Project -> Shake.ShakeException -> P.Doc P.AnsiStyle
+exceptionToDoc project e =
+  case fromException (Shake.shakeExceptionInner e) of
+    Just ee -> Error.render project ee
+    Nothing ->
+      let toS = show >>> words >>> map P.pretty
+       in P.vcat
+            [ P.fillSep
+                [ "system error while building project file:",
+                  P.yellow (P.pretty $ Shake.shakeExceptionTarget e)
+                ],
+              P.callout (P.red (P.fillSep (toS $ Shake.shakeExceptionInner e)))
+            ]
+
+-- | Build a project, returning a set of files that were used during
+-- the build.
+--
+-- @since 0.5.0.0
+build ::
+  Project.Project ->
+  Shake.ShakeOptions ->
+  Shake.Rules () ->
+  IO (Either (P.Doc P.AnsiStyle) (Set Text))
+build project opts rules = (`catch` onerr) $ do
+  (after, files) <- Shake.shakeWithDatabase opts rules $ \db -> do
+    Shake.shakeOneShotDatabase db
+    after <- Shake.shakeRunDatabase db [] <&> snd
+    files <- Shake.shakeLiveFilesDatabase db
+    pure (after, foldr (Set.insert . toText) mempty files)
+  Shake.shakeRunAfter opts after
+  pure (Right files)
+  where
+    onerr :: Shake.ShakeException -> IO (Either (P.Doc P.AnsiStyle) (Set Text))
+    onerr = exceptionToDoc project >>> pure . Left
+
+-- | Watch a project for file changes and rebuild it.
+--
+-- @since 0.5.0.0
+watch :: Project.Project -> Shake.ShakeOptions -> Shake.Rules () -> IO ()
+watch project opts rules = do
+  sem <- newMVar ()
+  files <- newMVar mempty
+
+  FSNotify.withManager $ \manager -> do
+    _stop <-
+      FSNotify.watchTree
+        manager
+        (project ^. #projectTopLevel . #projectDirectory)
+        (FSNotify.eventPath >>> notInBuildDirectory)
+        (FSNotify.eventPath >>> notify sem files)
+    forever
+      ( takeMVar sem
+          >> build project opts rules
+          >>= \case
+            Left e -> P.putError e
+            Right s ->
+              swapMVar files s
+                >> P.putNote "sleeping until a file changes"
+      )
+  where
+    notify :: MVar () -> MVar (Set Text) -> FilePath -> IO ()
+    notify sem filesv changed = do
+      files <- readMVar filesv
+      when (Set.member (toText changed) files) $ do
+        let root = project ^. #projectTopLevel . #projectDirectory
+        P.putNote
+          ( P.fillSep
+              [ P.reflow "file changed:",
+                P.file (Just root) changed
+              ]
+          )
+        putMVar sem ()
+
+    -- Avoid wake ups by ignoring files in the build directory.
+    notInBuildDirectory :: FilePath -> Bool
+    notInBuildDirectory =
+      let build = project ^. #projectConfig . #projectOutputDirectory
+       in not . (build `isPrefixOf`)
+
 -- | Build an Edify project.
 --
 -- @since 0.5.0.0
@@ -361,7 +446,7 @@ main ::
   Project.Project ->
   Options ->
   IO ()
-main user project Options {..} = (`catch` onError) $ do
+main user project Options {..} = do
   jobs <-
     if optionsThreads >= 1
       then pure optionsThreads
@@ -369,15 +454,9 @@ main user project Options {..} = (`catch` onError) $ do
         procs <- GHC.getNumProcessors
         pure (max 1 (procs `div` 2))
 
-  let sopts = shakeOptions jobs
-
-  (_, after) <- Shake.shakeWithDatabase
-    sopts
+  go
+    (shakeOptions jobs)
     (rules user project optionsCommandSafety Asset.assets)
-    $ \db -> do
-      Shake.shakeOneShotDatabase db
-      Shake.shakeRunDatabase db []
-  Shake.shakeRunAfter sopts after
   where
     shakeOptions :: Int -> Shake.ShakeOptions
     shakeOptions jobs =
@@ -386,26 +465,7 @@ main user project Options {..} = (`catch` onError) $ do
           Shake.shakeThreads = jobs
         }
 
-    onError :: Shake.ShakeException -> IO a
-    onError e = case fromException (Shake.shakeExceptionInner e) of
-      Just ee -> Exit.withError (Error.render project ee)
-      Nothing ->
-        let toS = show >>> words >>> map PP.pretty
-            doc =
-              PP.vcat
-                [ PP.fillSep
-                    [ "system error while building project file:",
-                      PP.annotate
-                        (PP.color PP.Yellow)
-                        (PP.pretty $ Shake.shakeExceptionTarget e)
-                    ],
-                  PP.nest
-                    2
-                    ( PP.line
-                        <> PP.annotate
-                          (PP.color PP.Red)
-                          (PP.fillSep (toS $ Shake.shakeExceptionInner e))
-                        <> PP.line
-                    )
-                ]
-         in Exit.withError doc
+    go :: Shake.ShakeOptions -> Shake.Rules () -> IO ()
+    go opts rules
+      | optionsWatch = watch project opts rules
+      | otherwise = build project opts rules >>= either Exit.withError (const pass)

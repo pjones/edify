@@ -13,7 +13,9 @@
 --
 -- License: Apache-2.0
 module Edify.Text.Pretty
-  ( callout,
+  ( putError,
+    putNote,
+    callout,
     shellLine,
     file,
     command,
@@ -37,6 +39,22 @@ import Data.Text.Prettyprint.Doc.Util
 import Prettyprinter.Render.Terminal
 import qualified System.FilePath as FilePath
 import Prelude hiding (group)
+
+-- | Print an error message to standard error.
+--
+-- @since 0.5.0.0
+putError :: MonadIO m => Doc AnsiStyle -> m ()
+putError doc =
+  let msg = mconcat [red "ERROR: ", doc, hardline]
+   in liftIO (hPutDoc stderr msg)
+
+-- | Print a notification to standard error.
+--
+-- @since 0.5.0.0
+putNote :: MonadIO m => Doc AnsiStyle -> m ()
+putNote doc =
+  let msg = mconcat [green "NOTE: ", doc, hardline]
+   in liftIO (hPutDoc stderr msg)
 
 -- | Either a space, or a line continuation.
 --

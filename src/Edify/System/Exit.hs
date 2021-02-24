@@ -27,10 +27,7 @@ import qualified System.Exit as Exit
 --
 -- @since 0.5.0.0
 withError :: MonadIO m => P.Doc P.AnsiStyle -> m a
-withError doc = do
-  let msg = mconcat [P.red "ERROR: ", doc, P.hardline]
-  liftIO (P.hPutDoc stderr msg)
-  exitFailure
+withError doc = P.putError doc >> exitFailure
 
 -- | If the given action throws a synchronous exception then exit the
 -- current process with an error message.

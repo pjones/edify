@@ -90,6 +90,13 @@ desc = ("Build one or more projects", flags)
                 Opt.help "Number of jobs to run in parallel"
               ]
           )
+        <*> Opt.switch
+          ( mconcat
+              [ Opt.long "watch",
+                Opt.short 'w',
+                Opt.help "Watch for changes and rebuild project"
+              ]
+          )
 
 -- | Execute a build.
 --
