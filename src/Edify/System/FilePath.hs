@@ -15,6 +15,7 @@
 module Edify.System.FilePath
   ( makeAbsoluteToDir,
     makeAbsoluteToFile,
+    makeRelativeToDir,
 
     -- * Mapping Output Files to Input Files
     InputExt (..),
@@ -118,6 +119,52 @@ makeAbsoluteToFile ::
   m FilePath
 makeAbsoluteToFile context =
   makeAbsoluteToDir (FilePath.takeDirectory context)
+
+-- | Make a path relative to a directory.
+--
+-- @since 0.5.0.0
+makeRelativeToDir ::
+  MonadIO m =>
+  -- | The directory that acts as a base from which a file will be
+  -- made relative.
+  FilePath ->
+  -- | A path that will be made to relative.
+  FilePath ->
+  -- | The path made relative, or if that's not possible, the absolute path.
+  m FilePath
+makeRelativeToDir dir path = do
+  candir <- liftIO (Directory.canonicalizePath dir)
+  canpath <- liftIO (Directory.canonicalizePath path)
+
+  let rels = do
+        guard (candir /= canpath)
+        prefix <- commonPrefix candir canpath
+        rdir <- List.stripPrefix prefix candir
+        rpath <- List.stripPrefix prefix canpath
+        pure (rdir, dropWhile FilePath.isPathSeparator rpath)
+
+  case rels of
+    Nothing -> pure canpath
+    Just (rdir, rpath)
+      | null rdir -> pure rpath
+      | otherwise ->
+        FilePath.splitPath rdir
+          & map (const "..")
+          & FilePath.joinPath
+          & (</> rpath)
+          & pure
+  where
+    commonPrefix :: FilePath -> FilePath -> Maybe FilePath
+    commonPrefix = go []
+      where
+        go prefix [] _ys = notnull prefix
+        go prefix _xs [] = notnull prefix
+        go prefix (x : xs) (y : ys)
+          | x == y = go (x : prefix) xs ys
+          | otherwise = notnull prefix
+
+        notnull [] = Nothing
+        notnull xs = Just (reverse xs)
 
 -- | Re-parent a file path so it under the output directory.
 --

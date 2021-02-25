@@ -18,6 +18,7 @@ module Edify.Compiler.Eval
   ( Runtime (..),
     emptyRuntime,
     depends,
+    relativeToOutput,
     withInput,
     commandStatus,
     verifyCommand,
@@ -90,6 +91,30 @@ depends input onerror onsuccess =
             (Cycle.NoCycles, deps) -> do
               #cycles .= deps
               onsuccess (Just full)
+
+-- | Given an absolute path name, make it relative to file currently
+-- being generated.  It is assumed that the file being generated can
+-- be derived from the file at the bottom of the stack.
+--
+-- @since 0.5.0.0
+relativeToOutput ::
+  MonadIO m =>
+  MonadState Runtime m =>
+  -- | Input directory.
+  FilePath ->
+  -- | Output directory.
+  FilePath ->
+  -- | The path to translate.
+  FilePath ->
+  -- | The translated path.
+  m FilePath
+relativeToOutput input output path = do
+  Runtime {stack} <- get
+  case Stack.bottom stack of
+    Nothing -> pure path
+    Just file -> do
+      let inoutdir = FilePath.toOutputPath input output file
+      FilePath.makeRelativeToDir (FilePath.takeDirectory inoutdir) path
 
 -- | Read input and pass it to a continuation, keeping track of
 -- evaluation housekeeping (e.g., dependency tracking).

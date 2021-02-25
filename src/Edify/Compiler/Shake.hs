@@ -100,7 +100,10 @@ eval user project target cmdmode assets = Free.iterM go
         k (project ^. #projectConfig . #projectTabstop)
       Lang.UnwantedDivClasses k ->
         k (target ^. #targetRemoveDivs)
-      Lang.Asset file k ->
+      Lang.Asset file k -> do
+        let indir = project ^. #projectTopLevel . #projectDirectory
+            outdir = project ^. #projectConfig . #projectOutputDirectory
+            ext = Asset.assetExtension (Project.targetFormat target)
         Eval.depends (Input.FromFile file) abort $ \case
           Nothing -> do
             warn
@@ -109,15 +112,17 @@ eval user project target cmdmode assets = Free.iterM go
               )
             k file
           Just path
-            | HashMap.member (FilePath.takeExtension path) assets ->
-              let indir = project ^. #projectTopLevel . #projectDirectory
-                  outdir = project ^. #projectConfig . #projectOutputDirectory
-                  ext = Asset.assetExtension (Project.targetFormat target)
-                  output =
+            | HashMap.member (FilePath.takeExtension path) assets -> do
+              let output =
                     FilePath.toOutputPath indir outdir path
                       `FilePath.addExt` ext
-               in shake (Shake.need [output]) >> k output
-            | otherwise -> shake (Shake.need [path]) >> k path
+              shake (Shake.need [output])
+              relative <- Eval.relativeToOutput indir outdir output
+              k relative
+            | otherwise -> do
+              shake (Shake.need [path])
+              relative <- Eval.relativeToOutput indir outdir path
+              k relative
       Lang.ReadInput input token subexp k -> do
         x <- Eval.withInput input abort $ \path content -> do
           whenJust path (shake . Shake.need . one)

@@ -19,6 +19,7 @@ module Edify.Compiler.Stack
     push,
     pop,
     top,
+    bottom,
     directory,
     resolve,
   )
@@ -54,6 +55,12 @@ pop = \case
 -- @since 0.5.0.0
 top :: Stack a -> Maybe a
 top = unStack >>> listToMaybe
+
+-- | Access the bottom of the stack.
+--
+-- @since 0.5.0.0
+bottom :: Stack a -> Maybe a
+bottom = unStack >>> reverse >>> listToMaybe
 
 -- | The parent directory for the file at the head of the stack.
 --
