@@ -112,6 +112,7 @@ main user Flags {..} =
     resolve :: IO Project.Project
     resolve =
       Project.resolve
+        (toProjectReadMode (Shake.optionsCommandSafety flagsBuildOptions))
         user
         flagsProjectTopLevel
         flagsProjectInputs
@@ -132,3 +133,8 @@ main user Flags {..} =
             predicate t = (t ^. #targetName) `elem` names
         list <- nonEmpty (filter predicate targets)
         pure (project & #projectConfig . field' @"projectTargets" .~ list)
+
+    toProjectReadMode :: Shake.CommandSafety -> Project.ReadMode
+    toProjectReadMode = \case
+      Shake.RequireCommandFingerprints -> Project.OnlyReadApproved
+      Shake.UnsafeAllowAllCommands -> Project.ReadWithoutFingerprint

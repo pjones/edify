@@ -17,10 +17,10 @@
 module Edify.Project
   ( ProjectConfig,
     Project (..),
+    ReadMode (..),
     resolve,
     defaultProjectConfigBytes,
     defaultProjectConfig,
-    readProjectConfigFile,
     projectCommands,
 
     -- * Re-exports
@@ -96,6 +96,23 @@ data Project = Project
   }
   deriving stock (Generic)
 
+-- | How safe to be when reading project configuration files.
+--
+-- @since 0.5.0.0
+data ReadMode
+  = -- | Require commands to be approved.
+    OnlyReadApproved
+  | -- | Read without consulting fingerprints.
+    ReadWithoutFingerprint
+
+-- | Convert read mode to the type needed by the "Input" module.
+toInputReadMode :: User.User -> ReadMode -> Input.ReadMode (ProjectConfig Parsed)
+toInputReadMode user = \case
+  OnlyReadApproved ->
+    Input.OnlyReadApprovedFiles (user ^. #userCommandAllowDir) projectCommands
+  ReadWithoutFingerprint ->
+    Input.ReadWithoutFingerprint
+
 -- | Resolve all components of a configuration into their final form.
 --
 -- Given the various components of a project configuration parsed from
@@ -105,6 +122,8 @@ data Project = Project
 -- @since 0.5.0.0
 resolve ::
   MonadIO m =>
+  -- | Safety level.
+  ReadMode ->
   -- | Fully resolved user configuration.
   User.User ->
   -- | Command line options or 'mempty'.
@@ -115,14 +134,14 @@ resolve ::
   Config.ConfigF Parsed ->
   -- | Fully resolved project configuration or error.
   m (Either Error.Error Project)
-resolve user cliTop cliInputs cliConfig = runExceptT $ do
+resolve mode user cliTop cliInputs cliConfig = runExceptT $ do
   -- Figure out where the project actually lives:
   t <- Inputs.resolveTopLevel cliTop
 
   -- Try to read a local project configuration file:
   (local, path) <-
     readProjectConfigFile
-      (user ^. #userCommandAllowDir)
+      (toInputReadMode user mode)
       (t ^. #projectDirectory)
       >>= either (throwError . Error.ConfigInputError) pure
 
@@ -138,28 +157,24 @@ resolve user cliTop cliInputs cliConfig = runExceptT $ do
   pure (Project c t i path)
 
 -- | Try to read a project-specific configuration file.
---
--- @since 0.5.0.0
 readProjectConfigFile ::
   MonadIO m =>
-  -- | Directory containing fingerprint files.
-  FilePath ->
+  -- | Whether or not to use fingerprints.
+  Input.ReadMode (ProjectConfig Parsed) ->
   -- | The project top-level directory.
   FilePath ->
   -- | The loaded configuration and the file it was read from.
   m (Either Input.Error (ProjectConfig Parsed, Maybe FilePath))
-readProjectConfigFile fpdir prjdir =
+readProjectConfigFile mode dir =
   let def = Right (defaultProjectConfig, Nothing)
-   in liftIO (Directory.doesDirectoryExist prjdir)
+   in liftIO (Directory.doesDirectoryExist dir)
         >>= bool
           (pure def)
-          ( Inputs.dirHasProjectConfig prjdir >>= \case
+          ( Inputs.dirHasProjectConfig dir >>= \case
               Nothing ->
                 pure def
               Just path ->
-                Input.decodeFromFile
-                  (Input.OnlyReadApprovedFiles fpdir projectCommands)
-                  path
+                Input.decodeFromFile mode path
                   <&> second (,Just path)
           )
 
