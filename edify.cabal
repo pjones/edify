@@ -104,6 +104,7 @@ common dependencies
     , text                         ^>=1.2
     , unix-compat                  ^>=0.5
     , unordered-containers         ^>=0.2
+    , with-utf8                    ^>=1.0
     , yaml                         ^>=0.11
 
   mixins:

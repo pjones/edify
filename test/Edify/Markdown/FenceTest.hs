@@ -22,6 +22,7 @@ import Data.Generics.Labels ()
 import Data.List (isSuffixOf)
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy.Builder as LTB
+import qualified Data.Text.Lazy.IO.Utf8 as Utf8
 import qualified Edify.Markdown.Attributes as Attrs
 import Edify.Markdown.Common (wholelineP)
 import Edify.Markdown.CommonTest (parseOnly)
@@ -55,7 +56,7 @@ goldenFenceTests = do
       goldenVsString
         file
         file
-        ( readFileLText file
+        ( Utf8.readFile file
             >>= parseOnly (Fence.fenceP wholelineP)
               <&> ( Fence.fenceT LTB.fromText
                       >>> LTB.toLazyText
@@ -93,7 +94,7 @@ testRewrite = do
       goldenVsString
         fileCmp
         fileCmp
-        ( readFileLText fileIn
+        ( Utf8.readFile fileIn
             >>= parseOnly (Fence.fenceP wholelineP)
             <&> ( Fence.rewrite ts LTB.fromText wholelineP rewrite
                     >>> runIdentity

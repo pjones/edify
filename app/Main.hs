@@ -25,6 +25,7 @@ import qualified Edify.Command.Generate as Generate
 import qualified Edify.Compiler.User as User
 import qualified Edify.System.Exit as Exit
 import qualified Edify.System.Input as Input
+import Main.Utf8 (withUtf8)
 import qualified Options.Applicative as Options
 import Paths_edify (version)
 import qualified System.Directory as Directory
@@ -66,7 +67,7 @@ versionCmd =
       ]
 
 main :: IO ()
-main = do
+main = withUtf8 $ do
   userConfigFile <- User.defaultUserConfigFile
   exists <- Directory.doesFileExist userConfigFile
 

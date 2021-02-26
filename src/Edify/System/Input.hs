@@ -36,6 +36,7 @@ import Control.Monad.Except (throwError)
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy.IO as LText
+import qualified Data.Text.Lazy.IO.Utf8 as Utf8
 import qualified Data.Yaml as YAML
 import qualified Edify.Text.Fingerprint as Fingerprint
 import qualified Edify.Text.Pretty as P
@@ -158,7 +159,7 @@ readInput = \case
   FromFile path -> do
     exists <- liftIO (Dir.doesFileExist path)
     if exists
-      then readFileLText path <&> Right
+      then Utf8.readFile path <&> Right
       else pure (Left $ FileDoesNotExist path)
   FromHandle h ->
     liftIO (LText.hGetContents h) <&> Right

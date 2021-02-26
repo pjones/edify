@@ -19,6 +19,7 @@ where
 
 import Control.Lens ((^..))
 import qualified Data.Text.Lazy.Builder as LTB
+import qualified Data.Text.Lazy.IO.Utf8 as Utf8
 import qualified Edify.Markdown.AST as AST
 import Edify.Markdown.CommonTest (parseOnly)
 import System.FilePath ((</>))
@@ -49,7 +50,7 @@ goldenAstTests = do
       goldenVsString
         file
         file
-        ( readFileLText file
+        ( Utf8.readFile file
             >>= parseOnly AST.markdownP
               <&> ( AST.markdownT
                       >>> LTB.toLazyText
@@ -59,7 +60,7 @@ goldenAstTests = do
 
 extractURLs :: FilePath -> IO [Text]
 extractURLs file =
-  readFileLText (dataDir </> file)
+  Utf8.readFile (dataDir </> file)
     >>= parseOnly AST.markdownP
     <&> (^.. AST.blocks . AST.urls)
 

@@ -30,6 +30,7 @@ import qualified Control.Monad.Free.Church as Free
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Set as Set
 import qualified Data.Text.Lazy.Builder as Builder
+import qualified Data.Text.Lazy.IO.Utf8 as Utf8
 import qualified Development.Shake as Shake
 import qualified Development.Shake.Database as Shake
 import qualified Edify.Compiler.Asset as Asset
@@ -301,7 +302,7 @@ markdownRule user project target cmdmode assets =
           & runExceptT
           & evaluatingStateT Eval.emptyRuntime
           >>= either (liftIO . throwIO) pure
-      writeFileLText output (ast & AST.markdownT & Builder.toLazyText)
+      liftIO (Utf8.writeFile output (ast & AST.markdownT & Builder.toLazyText))
 
 -- | Convert a target's command into a Shake rule.
 --

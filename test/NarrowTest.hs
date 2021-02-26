@@ -17,6 +17,7 @@ module NarrowTest
   )
 where
 
+import qualified Data.Text.IO.Utf8 as Utf8
 import qualified Edify.Text.Indent as Indent
 import qualified Edify.Text.Narrow as Narrow
 import System.FilePath (dropExtension, takeBaseName)
@@ -40,7 +41,7 @@ goldenTests = do
        in goldenVsString
             file
             golden
-            ( readFileText file
+            ( Utf8.readFile file
                 <&> ( Narrow.narrow token
                         >>> either show (Indent.unindent Indent.defaultTabstop)
                         >>> encodeUtf8
