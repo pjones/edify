@@ -24,21 +24,35 @@ let
     };
   };
 
+  bin = drv.bin.overrideAttrs
+    (orig: {
+      buildInputs =
+        (orig.buildInputs or [ ])
+        ++ [ pkgs.makeWrapper ];
+
+      # Wrap the edify executable so it can access all of the run-time
+      # dependencies:
+      postInstall =
+        (orig.postInstall or "")
+        + ''
+          mkdir -p "$out/wrapped"
+          mv "$out/bin/edify" "$out/wrapped/edify"
+
+          makeWrapper "$out/wrapped/edify" "$out/bin/edify" \
+            --prefix PATH : "${path}"
+        '';
+    });
+
+  lib = drv.overrideAttrs (orig: {
+    passthru = orig.passthru or { } // {
+      bin = pkgs.haskell.lib.generateOptparseApplicativeCompletion "edify" bin;
+    };
+
+    postInstall =
+      (orig.postInstall or "")
+      + ''
+        rm -r "$out/bin"
+      '';
+  });
 in
-drv.overrideAttrs (orig: {
-  buildInputs =
-    (orig.buildInputs or [ ])
-    ++ [ pkgs.makeWrapper ];
-
-  # Wrap the edify executable so it can access all of the run-time
-  # dependencies:
-  postInstall =
-    (orig.postInstall or "")
-    + ''
-      mkdir -p "$out/wrapped"
-      mv "$out/bin/edify" "$out/wrapped/edify"
-
-      makeWrapper "$out/wrapped/edify" "$out/bin/edify" \
-        --prefix PATH : "${path}"
-    '';
-})
+lib
