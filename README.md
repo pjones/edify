@@ -3,7 +3,11 @@
 Edify is a Markdown processor/compiler with features designed for
 authors writing technical documentation, articles, books, etc.
 
-## Markdown Extensions
+[![tests](https://github.com/pjones/edify/actions/workflows/tests.yml/badge.svg)](https://github.com/pjones/edify/actions/workflows/tests.yml)
+[![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/pjones/edify?label=release)](https://github.com/pjones/edify/releases)
+[![Status](https://img.shields.io/badge/status-beta-yellow)](https://github.com/pjones/edify)
+
+## Markdown Extensions and Features
 
 Edify extends Markdown in the following ways:
 
@@ -14,6 +18,9 @@ Edify extends Markdown in the following ways:
   * [Import Markdown files][import] (or just a portion of a file) anywhere
 
   * [Rewrite image links][image] appropriate to the output format
+
+It also builds all [linked assets][image] (e.g., Graphviz, SVG, etc.) for
+inclusion into the final target document (e.g., PDF, HTML, etc.).
 
 ## Getting Started
 
@@ -50,6 +57,10 @@ Here's a quick way to get started:
      ```
      $ edify build
      ```
+
+## Example Projects
+
+  * [Web Development Course](https://github.com/devalot/webdev) ([configuration file](https://github.com/devalot/webdev/blob/master/.edify.yml))
 
 [insert]: doc/insert.md
 [exec]: doc/exec.md
