@@ -1,6 +1,6 @@
 cabal-version:      2.4
 name:               edify
-version:            0.5.0.0
+version:            0.5
 license:            Apache-2.0
 license-file:       LICENSE
 author:             Peter Jones <pjones@devalot.com>
@@ -11,10 +11,10 @@ build-type:         Simple
 tested-with:        GHC ==8.6.5 || ==8.8.4 || ==8.10.2
 homepage:           https://github.com/pjones/edify
 bug-reports:        https://github.com/pjones/edify/issues
-synopsis:
-  Markdown (via pandoc) processing and content tools for Devalot.com
-
-description:        TODO
+synopsis:           Markdown for Technical Authors
+description:
+  Edify is a Markdown processor/compiler with features designed for
+  authors writing technical documentation, articles, books, etc.
 
 ------------------------------------------------------------------------------
 extra-source-files:

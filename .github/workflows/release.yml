@@ -26,7 +26,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macOS-latest, windows-latest]
         cabal: ["3.2"]
-        ghc: ["8.6.5"]
+        ghc: ["8.8"]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v2
@@ -37,7 +37,7 @@ jobs:
 
       - name: Setup Haskell
         id: setup-haskell-cabal
-        uses: actions/setup-haskell@v1.1
+        uses: haskell/actions/setup@v1
         with:
           ghc-version: ${{ matrix.ghc }}
           cabal-version: ${{ matrix.cabal }}
