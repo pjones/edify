@@ -1,6 +1,6 @@
 cabal-version:      2.4
 name:               edify
-version:            0.5
+version:            0.5.1
 license:            Apache-2.0
 license-file:       LICENSE
 author:             Peter Jones <pjones@devalot.com>
@@ -18,6 +18,7 @@ description:
 
 ------------------------------------------------------------------------------
 extra-source-files:
+  CHANGES.md
   data/config/*.yml
   README.md
   test/data/**/*.golden

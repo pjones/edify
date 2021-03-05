@@ -19,6 +19,9 @@ module Edify.Project.Target
     resolve,
     targetsByFileExtension,
 
+    -- * Resolving Commands
+    CommandArgs (..),
+
     -- * Formats
     Format (..),
     formatExtension,
@@ -57,6 +60,19 @@ formatExtension = \case
   PDF -> FilePath.Ext "pdf"
   HTML -> FilePath.Ext "html"
 
+-- | Values needed to produce a final 'Target' command.
+--
+-- @since 0.5.1
+data CommandArgs = CommandArgs
+  { -- | The project input directory.
+    commandInputDir :: FilePath,
+    -- | The input file to run the command on.
+    commandInputFile :: FilePath,
+    -- | The output file the command should produce.
+    commandOutputFile :: FilePath
+  }
+  deriving stock (Generic)
+
 -- | Description for documents to build out of Markdown.
 --
 -- @since 0.5.0.0
@@ -83,7 +99,7 @@ data TargetF (f :: Readiness) = Target
         (HashSet (CaseInsensitive.CI Attrs.CssIdent)),
     -- | A shell command used to convert Markdown to the desired
     -- format.
-    targetCommand :: Checked f Text ((FilePath, FilePath) -> Text)
+    targetCommand :: Checked f Text (CommandArgs -> Text)
   }
   deriving stock (Generic)
 
@@ -162,15 +178,16 @@ resolve target@Target {..} = do
         targetCommand = cmd
       }
   where
-    resolveCommand :: Text -> Either Error ((FilePath, FilePath) -> Text)
+    resolveCommand :: Text -> Either Error (CommandArgs -> Text)
     resolveCommand cmd =
-      let boundVars = "io"
+      let boundVars = "iop"
           freeVars ast = Placeholders.vars ast \\ boundVars
-          toCommand ast (input, output) =
+          toCommand ast CommandArgs {..} =
             Placeholders.substitute
               ( fromList
-                  [ ('i', toText input),
-                    ('o', toText output)
+                  [ ('i', toText commandInputFile),
+                    ('o', toText commandOutputFile),
+                    ('p', toText commandInputDir)
                   ]
               )
               ast
