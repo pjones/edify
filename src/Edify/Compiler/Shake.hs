@@ -42,6 +42,7 @@ import qualified Edify.Compiler.Stack as Stack
 import qualified Edify.Compiler.User as User
 import qualified Edify.Markdown.AST as AST
 import qualified Edify.Project as Project
+import qualified Edify.Project.Target as Target
 import qualified Edify.System.Exit as Exit
 import qualified Edify.System.FilePath as FilePath
 import qualified Edify.System.Input as Input
@@ -327,12 +328,19 @@ targetRule project target =
     action :: FilePath -> FilePath -> Shake.Action ()
     action input output = do
       let ops =
-            [ Shake.Cwd (project ^. #projectTopLevel . #projectDirectory),
+            [ Shake.Cwd (FilePath.takeDirectory output),
               Shake.Shell,
               Shake.EchoStdout False,
               Shake.EchoStderr False
             ]
-          cmd = Project.targetCommand target (input, output)
+          args =
+            Target.CommandArgs
+              { Target.commandInputDir =
+                  project ^. #projectTopLevel . #projectDirectory,
+                Target.commandInputFile = input,
+                Target.commandOutputFile = output
+              }
+          cmd = Project.targetCommand target args
       Shake.need [input]
       Shake.command_ ops (toString cmd) []
 
