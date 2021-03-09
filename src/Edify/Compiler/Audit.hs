@@ -22,7 +22,6 @@ module Edify.Compiler.Audit
   )
 where
 
-import Control.Lens ((%=))
 import Control.Monad.Except (throwError)
 import qualified Control.Monad.Free.Church as Free
 import qualified Data.Aeson as Aeson
@@ -112,31 +111,35 @@ eval ::
   FilePath ->
   Lang.Compiler a ->
   AuditT m (a, Audit)
-eval allowDir = Free.iterM go . fmap (,mempty)
+eval allowDir compiler = do
+  stack <- gets Eval.stack
+  let initialFile = Stack.top stack & Input.toFilePath & fromMaybe "<stdin>"
+  eval' compiler <&> second (embed . AuditFile initialFile)
   where
-    go :: MonadIO m => Lang.CompilerF (AuditT m (a, Audit)) -> AuditT m (a, Audit)
-    go = \case
+    eval' :: MonadIO m => Lang.Compiler a -> AuditT m (a, Audit)
+    eval' = Free.iterM alg . fmap (,mempty)
+
+    alg :: MonadIO m => Lang.CompilerF (AuditT m (a, Audit)) -> AuditT m (a, Audit)
+    alg = \case
       Lang.Tabstop k ->
         k Indent.defaultTabstop
       Lang.UnwantedDivClasses k ->
         k mempty -- Keep all divs.
       Lang.Asset file k -> do
-        abs <- Eval.depends (Input.FromFile file) abort (maybe (pure file) pure)
+        abs <- Eval.depends file
         k abs <&> second (embed (AuditAsset abs) <>)
-      Lang.ReadInput input _token subexp k -> do
+      Lang.WithFileContents file _token subexp k -> do
         -- N.B.: Narrowing token is ignored so we see entire files.
-        (x, a) <- Eval.withInput input abort $ \path content ->
-          eval allowDir (subexp content)
-            <&> ( case path of
-                    Nothing -> id
-                    Just file -> second (embed . AuditFile file)
-                )
+        (x, a) <- Eval.withFileContents file Nothing $ \path content ->
+          eval' (subexp content)
+            <&> second (embed . AuditFile path)
         k x <&> second (a <>)
       Lang.Exec (command, _input) k -> do
-        (path, status) <- Eval.commandStatus allowDir command abort (curry pure)
+        (path, status) <- Eval.commandStatus allowDir command (curry pure)
         k command <&> second (embed (AuditCommand path command status) <>)
-      Lang.Abort e ->
-        abort e
+      Lang.Abort f -> do
+        top <- gets Eval.stack <&> Stack.top
+        abort (f top)
 
     abort :: Monad m => Error.Error -> AuditT m a
     abort = throwError
@@ -159,32 +162,36 @@ audit allowDir files = runExceptT $ do
         fmap (y <>) $
           if isConfigFile file
             then projectAudit file
-            else markdownAudit (Markdown.compile $ Input.FromFile file)
+            else markdownAudit file
     )
     mempty
     files
   where
-    markdownAudit :: Lang.Compiler a -> ExceptT Error.Error m Audit
-    markdownAudit =
-      eval allowDir
-        >>> evaluatingStateT Eval.emptyRuntime
-        >>> runExceptT
-        >>> fmap (second snd)
-        >>> ExceptT
+    markdownAudit :: FilePath -> ExceptT Error.Error m Audit
+    markdownAudit file = do
+      let input = Input.FromFile file
+
+      content <-
+        Input.readInput input
+          >>= either (throwError . (`Error.InputError` input)) pure
+
+      eval allowDir (Markdown.compile content)
+        & evaluatingStateT (Eval.emptyRuntime input)
+        & runExceptT
+        & fmap (second snd)
+        & ExceptT
 
     projectAudit :: FilePath -> ExceptT Error.Error m Audit
-    projectAudit file = evaluatingStateT Eval.emptyRuntime $ do
-      #stack %= Stack.push file
-      (project :: Project.ProjectConfig Parsed) <-
-        Input.decodeFromFile Input.ReadWithoutFingerprint file
-          >>= either (throwError . Error.InputError (Input.FromFile file)) pure
-      mapM
-        ( \cmd ->
-            Eval.commandStatus allowDir cmd throwError $ \_file status ->
-              pure (cmd, status)
-        )
-        (Project.projectCommands project)
-        <&> foldMap (\(cmd, status) -> embed (AuditCommand file cmd status))
+    projectAudit file = do
+      let input = Input.FromFile file
+      evaluatingStateT (Eval.emptyRuntime input) $ do
+        (project :: Project.ProjectConfig Parsed) <-
+          Input.decodeFromFile Input.ReadWithoutFingerprint file
+            >>= either (throwError . (`Error.InputError` input)) pure
+        traverse
+          (\cmd -> Eval.commandStatus allowDir cmd (const $ pure . (cmd,)))
+          (Project.projectCommands project)
+          <&> foldMap (\(cmd, status) -> embed (AuditCommand file cmd status))
 
     isConfigFile :: FilePath -> Bool
     isConfigFile =

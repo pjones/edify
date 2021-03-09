@@ -30,18 +30,16 @@ import qualified Edify.Text.Pretty as P
 --
 -- @since 0.5.0.0
 data Error
-  = -- | Errors that are from an internal bug.
-    InternalBugError !String
-  | -- | Errors from the "Input" module.
-    InputError !Input.Input !Input.Error
+  = -- | Errors from the "Input" module.
+    InputError !Input.Error !Input.Input
   | -- | A cycle was found while recording a dependency.
     DependencyCycleError !FilePath !FilePath ![FilePath]
   | -- | Errors from the "Format" module.
-    FormatError !Input.Input !Format.Error
+    FormatError !Format.Error !Input.Input
   | -- | Failure to parse a markdown file.
-    ParseError !Input.Input ![String] !String
+    ParseError ![String] !String !Input.Input
   | -- | Failed to parse the output of a div rewrite.
-    DivRewriteError !Input.Input !Fence.RewriteError
+    DivRewriteError !Fence.RewriteError !Input.Input
   | -- | Attempt to run an unverified command.
     CommandBlockedError !FilePath !Text
   deriving stock (Generic, Show)
@@ -73,12 +71,7 @@ render' ::
   -- | Rendered output.
   P.Doc P.AnsiStyle
 render' cwd top inputs = \case
-  InternalBugError s ->
-    P.fillSep
-      [ P.reflow "internal inconsistency:",
-        P.red (P.pretty s)
-      ]
-  InputError input e ->
+  InputError e input ->
     P.fillSep
       [ Input.renderError e,
         P.reflow "The error was encountered while processing",
@@ -98,7 +91,7 @@ render' cwd top inputs = \case
         P.reflow "The loop looks something like this:",
         P.callout (P.vcat $ map ppFile files)
       ]
-  FormatError input e ->
+  FormatError e input ->
     P.vcat
       [ P.fillSep
           [ P.reflow "while processing",
@@ -106,7 +99,7 @@ render' cwd top inputs = \case
           ],
         P.callout (Format.renderError e)
       ]
-  ParseError input context e ->
+  ParseError context e input ->
     P.vcat
       [ P.fillSep
           [ P.reflow "parsing markdown from",
@@ -116,7 +109,7 @@ render' cwd top inputs = \case
         P.reflow "Context:",
         P.callout (P.vcat (map P.pretty context))
       ]
-  DivRewriteError input e ->
+  DivRewriteError e input ->
     let body = case Fence.rewriteBody (Fence.errorRewriteRequest e) of
           Nothing -> mempty
           Just b ->
