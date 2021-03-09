@@ -36,6 +36,7 @@ import qualified Edify.Compiler.Lang as Lang
 import qualified Edify.Compiler.Markdown as Markdown
 import qualified Edify.Compiler.Stack as Stack
 import qualified Edify.Markdown.AST as AST
+import qualified Edify.System.FilePath as FilePath
 import qualified Edify.System.Input as Input
 import qualified Edify.Text.Indent as Indent
 import qualified System.Directory as Directory
@@ -147,7 +148,7 @@ execIfApproved ::
   -- | The output of the command.
   m Text
 execIfApproved dir from (command, input) =
-  let exec = lift . unsafeRunCommand . (,input)
+  let exec = lift . unsafeRunCommand from . (,input)
    in Eval.verifyCommand dir command (liftIO . throwIO) exec
         & evaluatingStateT (Eval.emptyRuntime (Input.FromFile from))
 
@@ -162,8 +163,20 @@ execIfApproved dir from (command, input) =
 -- will read /all/ of its standard output into memory.
 --
 -- @since 0.6.0
-unsafeRunCommand :: MonadIO m => (Lang.Command, Lang.StandardInput) -> m Text
-unsafeRunCommand (cmd, input) = liftIO $ do
-  let process = Process.shell (toString cmd)
+unsafeRunCommand ::
+  MonadIO m =>
+  -- | The Markdown file that is requesting the shell command
+  -- execution.  The shell command will be run within the directory
+  -- containing the Markdown file.
+  FilePath ->
+  -- | The command to run along with its standard input.
+  (Lang.Command, Lang.StandardInput) ->
+  -- | The output of the command.
+  m Text
+unsafeRunCommand file (cmd, input) = liftIO $ do
+  let process =
+        (Process.shell (toString cmd))
+          { Process.cwd = Just (FilePath.takeDirectory file)
+          }
   out <- Process.readCreateProcess process (toString input)
   pure (toText out)
