@@ -45,7 +45,7 @@ imageTest =
     inline = (`Inline` Nothing)
 
     ref :: Text -> Destination
-    ref = (`Reference` RefSep Nothing) . Just
+    ref = Reference (RefSep Nothing) . RefText
 
 main :: IO TestTree
 main =
