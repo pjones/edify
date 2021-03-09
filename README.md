@@ -36,7 +36,7 @@ For the rest of us I recommend installing [Nix][] and installing all
 of the required dependencies in a single step:
 
 ```
-$ nix-env -iA bin -f https://github.com/pjones/edify/archive/v0.5.tar.gz
+$ nix-env -iA bin -f https://github.com/pjones/edify/archive/latest.tar.gz
 ```
 
 ### Building a Markdown Project
