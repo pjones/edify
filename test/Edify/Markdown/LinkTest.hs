@@ -37,22 +37,22 @@ linkTest = do
         Link "CC" (Inline "bar" $ Just "baz \"x")
       ),
       ( "[DD][bar]",
-        Link "DD" (Reference (Just "bar") (RefSep Nothing))
+        Link "DD" (Reference (RefSep Nothing) (RefText "bar"))
       ),
       ( "[EE][]",
-        Link "EE" (Reference Nothing (RefSep Nothing))
+        Link "EE" (Reference (RefSep Nothing) NoRefText)
       ),
       ( "[FF] [baz]",
-        Link "FF" (Reference (Just "baz") (RefSep $ Just " "))
+        Link "FF" (Reference (RefSep $ Just " ") (RefText "baz"))
       ),
       ( "[GG]\n [baz]",
-        Link "GG" (Reference (Just "baz") (RefSep $ Just "\n "))
+        Link "GG" (Reference (RefSep $ Just "\n ") (RefText "baz"))
       ),
       ( "[HH]\r\n [baz]",
-        Link "HH" (Reference (Just "baz") (RefSep $ Just "\r\n "))
+        Link "HH" (Reference (RefSep $ Just "\r\n ") (RefText "baz"))
       ),
       ( "[II[foo]][baz]",
-        Link "II[foo]" (Reference (Just "baz") (RefSep Nothing))
+        Link "II[foo]" (Reference (RefSep Nothing) (RefText "baz"))
       ),
       ( "<http://bar>",
         AutoLink "http://bar"
@@ -62,10 +62,10 @@ linkTest = do
   mapM_
     (\(input, expect) -> parseOnly linkP input >>= (@?= expect))
     [ ( "[01]",
-        Link "01" (Reference Nothing (RefSep $ Just "\n"))
+        Link "01" (Reference (RefSep $ Just "\n") ShortcutRef)
       ),
       ( "[02] \n [baz]",
-        Link "02" (Reference (Just "baz") (RefSep $ Just "\n "))
+        Link "02" (Reference (RefSep $ Just " \n ") (RefText "baz"))
       )
     ]
 
@@ -75,13 +75,18 @@ linkTest = do
     )
     [ ( "[A1]\n\n[bar]",
         "\n[bar]",
-        Link "A1" (Reference Nothing (RefSep $ Just "\n"))
+        Link "A1" (Reference (RefSep $ Just "\n") ShortcutRef)
+      ),
+      ( "[A2] foo",
+        "foo",
+        Link "A2" (Reference (RefSep $ Just " ") ShortcutRef)
       )
     ]
 
   mapM_
     (parseShouldFail linkP)
-    [ "[foo]: bar"
+    [ "[foo]: bar",
+      "[foo]{"
     ]
   where
     roundTrip :: (LText, Link Text) -> Assertion

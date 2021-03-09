@@ -137,10 +137,10 @@ wholelineP = do
 --
 -- @since 0.5.0.0
 endOfLineP :: Atto.Parser Text
-endOfLineP =
-  (Atto.<?> "end of line") $
-    skipHorzSpace
-      *> (newline <|> crnl <|> (Atto.endOfInput $> "\n"))
+endOfLineP = (Atto.<?> "end of line") $ do
+  space <- many (Atto.satisfy Atto.isHorizontalSpace)
+  end <- newline <|> crnl <|> (Atto.endOfInput $> "\n")
+  pure (toText space <> end)
   where
     newline :: Atto.Parser Text
     newline = Atto.char '\n' $> "\n"

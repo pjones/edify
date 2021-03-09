@@ -16,6 +16,7 @@ module Edify.Markdown.Link
   ( Link (..),
     Definition (..),
     RefSep (..),
+    RefText (..),
     Destination (..),
     traverseLink,
     linkP,
@@ -48,6 +49,20 @@ newtype RefSep = RefSep (Maybe Text)
   deriving stock (Generic, Show, Eq)
   deriving (ToJSON, FromJSON) via GenericJSON RefSep
 
+-- | Records the link destination for a reference link.
+--
+-- @since 0.5.2
+data RefText
+  = -- | Shortcut style reference link where the reference brackets
+    -- are completely missing.
+    ShortcutRef
+  | -- | Brackets with no content (or just empty space).
+    NoRefText
+  | -- | Brackets with reference text.
+    RefText Text
+  deriving stock (Generic, Show, Eq)
+  deriving (ToJSON, FromJSON) via GenericJSON RefText
+
 -- | Link destination.
 --
 -- @since 0.5.0.0
@@ -72,7 +87,7 @@ data Destination
     -- [Link Text][]
     -- [Link Text]
     -- @
-    Reference (Maybe Text) RefSep
+    Reference RefSep RefText
   deriving stock (Generic, Show, Eq)
   deriving (ToJSON, FromJSON) via GenericJSON Destination
 
@@ -160,17 +175,17 @@ linkInlineP = do
 -- @since 0.5.0.0
 linkRefP :: Atto.Parser Destination
 linkRefP = do
-  -- Ensure this is not a link definition.
+  -- Ensure this is not a link definition or bracketed span.
   c <- Atto.peekChar
-  guard (c /= Just ':')
+  guard (c /= Just ':' && c /= Just '{')
 
   sep <- RefSep <$> optional (spaceNewlineSpace <|> hSpace)
   optional (matchingBracketP ('[', ']'))
     >>= \case
-      Nothing -> pure (Reference Nothing sep)
+      Nothing -> pure (Reference sep ShortcutRef)
       Just ref
-        | Text.all isSpace ref -> pure (Reference Nothing sep)
-        | otherwise -> pure (Reference (Just $ Text.strip ref) sep)
+        | Text.all isSpace ref -> pure (Reference sep NoRefText)
+        | otherwise -> pure (Reference sep (RefText $ Text.strip ref))
   where
     spaceNewlineSpace :: Atto.Parser Text
     spaceNewlineSpace = do
@@ -268,12 +283,13 @@ linkDestT = \case
         definitionBodyT url title,
         LTB.singleton ')'
       ]
-  Reference ref (RefSep sep) ->
+  Reference (RefSep sep) ref ->
     mconcat
       [ maybe mempty LTB.fromText sep,
-        LTB.singleton '[',
-        maybe mempty LTB.fromText ref,
-        LTB.singleton ']'
+        case ref of
+          ShortcutRef -> mempty
+          NoRefText -> LTB.fromText "[]"
+          RefText t -> LTB.singleton '[' <> LTB.fromText t <> LTB.singleton ']'
       ]
 
 -- | Render the body of a link definition as text.
