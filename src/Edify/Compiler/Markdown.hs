@@ -29,28 +29,25 @@ import qualified Edify.Markdown.Attributes as Attrs
 import Edify.Markdown.Fence (Rewrite (..))
 import qualified Edify.Markdown.Fence as Fence
 import qualified Edify.Markdown.Include as Include
-import Edify.System.Input (Input)
-import qualified Edify.System.Input as Input
 import qualified Edify.Text.Format as Format
 
 -- | Compile the given 'Input' as Markdown.
 --
 -- @since 0.5.0.0
-compile :: Input -> Compiler AST.AST
-compile input = C.readInput input Nothing (parse >=> AST.blocks process)
+compile :: LText -> Compiler AST.AST
+compile = parse >=> AST.blocks process
   where
     parse :: LText -> Compiler AST.AST
     parse content =
       case Atto.parse (AST.markdownP <* Atto.endOfInput) content of
         Atto.Fail _ context msg ->
-          C.abort (C.ParseError input context msg)
+          C.abort (C.ParseError context msg)
         Atto.Done leftover ast
           | LText.null leftover ->
             pure ast
           | otherwise ->
             C.abort
               ( C.ParseError
-                  input
                   []
                   ( "impossible: text after EOF: "
                       <> toString leftover
@@ -60,15 +57,8 @@ compile input = C.readInput input Nothing (parse >=> AST.blocks process)
     process :: AST.Block -> Compiler [AST.Block]
     process = \case
       AST.IncludeBlock Include.Include {..} -> do
-        ast <-
-          C.readInput
-            (Input.FromFile includeFile)
-            includeToken
-            (compile . Input.FromText)
-        pure
-          ( AST.unAST ast
-              <> one (AST.BlankLine includeEndOfLine)
-          )
+        C.withFileContents includeFile includeToken compile
+          <&> (AST.unAST >>> (<> one (AST.BlankLine includeEndOfLine)))
       other -> rewrite other
 
     rewrite :: AST.Block -> Compiler [AST.Block]
@@ -87,7 +77,7 @@ compile input = C.readInput input Nothing (parse >=> AST.blocks process)
 
       AST.fencesRewrite ts go block
         >>= either
-          (C.abort . C.DivRewriteError input)
+          (C.abort . C.DivRewriteError)
           (AST.urls rewriteLink)
 
 -- | Rewrite link URLs that point to local assets.
@@ -113,9 +103,8 @@ rewriteInsert src
   where
     insert :: FilePath -> Compiler Rewrite
     insert file = do
-      let input = Input.FromFile file
-          token = Format.Token <$> src ^. _1 . Attrs.at "token"
-      body <- C.readInput input token pure
+      let token = Format.Token <$> src ^. _1 . Attrs.at "token"
+      body <- C.withFileContents file token pure
       pure
         Rewrite
           { rewriteAttrs =

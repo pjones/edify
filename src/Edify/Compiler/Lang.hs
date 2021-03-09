@@ -24,7 +24,7 @@ module Edify.Compiler.Lang
     tabstop,
     unwantedDivClasses,
     asset,
-    readInput,
+    withFileContents,
     exec,
     abort,
     CompilerF (..),
@@ -67,11 +67,12 @@ data CompilerF k where
   -- compiled the path to the final build result is returned.
   -- Otherwise the absolute path to the source asset is returned.
   Asset :: FilePath -> (FilePath -> k) -> CompilerF k
-  -- | Load text from the given input source.
-  ReadInput ::
+  -- | Pass the contents of the given file to the continuation.  If a
+  -- token is given, narrow the contents of the file first.
+  WithFileContents ::
     forall a k.
     -- The input to read from.
-    Input ->
+    FilePath ->
     -- Optionally narrow the input.
     Maybe Token ->
     -- A function to process the read data.
@@ -83,14 +84,14 @@ data CompilerF k where
   -- | Execute a shell command feeding it some input.
   Exec :: (Command, StandardInput) -> (Text -> k) -> CompilerF k
   -- | Abort the compilation with the given error.
-  Abort :: Error -> CompilerF k
+  Abort :: (Input -> Error) -> CompilerF k
 
 instance Functor CompilerF where
   fmap f = \case
     Tabstop g -> Tabstop (f . g)
     UnwantedDivClasses g -> UnwantedDivClasses (f . g)
     Asset file g -> Asset file (f . g)
-    ReadInput input token h g -> ReadInput input token h (f . g)
+    WithFileContents file token h g -> WithFileContents file token h (f . g)
     Exec x g -> Exec x (f . g)
     Abort e -> Abort e
 

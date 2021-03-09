@@ -19,26 +19,32 @@ module Edify.Compiler.Eval
     emptyRuntime,
     depends,
     relativeToOutput,
-    withInput,
+    withFileContents,
     commandStatus,
     verifyCommand,
   )
 where
 
 import Control.Lens ((%=), (.=))
+import Control.Monad.Except (MonadError, throwError)
 import qualified Edify.Compiler.Cycle as Cycle
 import qualified Edify.Compiler.Error as Error
+import Edify.Compiler.Stack (Stack)
 import qualified Edify.Compiler.Stack as Stack
 import qualified Edify.System.FilePath as FilePath
+import Edify.System.Input (Input)
 import qualified Edify.System.Input as Input
 import qualified Edify.Text.Fingerprint as Fingerprint
+import qualified Edify.Text.Format as Format
+import Edify.Text.Narrow (Token)
+import qualified System.Directory as Directory
 
 -- | Compiler evaluation state.
 --
 -- @since 0.5.0.0
 data Runtime = Runtime
-  { -- | Stack of files that we are currently processing.
-    stack :: Stack.Stack FilePath,
+  { -- | Stack of inputs that we are currently processing.
+    stack :: Stack Input,
     -- | Track cycles in dependencies.
     cycles :: Cycle.Deps FilePath,
     -- | Cache of commands that are approved for executing.
@@ -49,52 +55,46 @@ data Runtime = Runtime
 -- | Create an initial 'Runtime' value.
 --
 -- @since 0.5.0.0
-emptyRuntime :: Runtime
-emptyRuntime =
+emptyRuntime :: Input -> Runtime
+emptyRuntime initialInput =
   Runtime
-    { stack = mempty,
+    { stack = Stack.stack initialInput,
       cycles = Cycle.emptyDeps,
       fpcache = mempty
     }
 
--- | Record a dependency on the given input.
+-- | Record a dependency on the given file.
 --
--- @since 0.5.0.0
+-- @since 0.6.0
 depends ::
-  forall m a.
+  forall m.
   MonadIO m =>
+  MonadError Error.Error m =>
   MonadState Runtime m =>
-  -- | Input to add as a dependency.
-  Input.Input ->
-  -- | Continuation if an error occurs.
-  (Error.Error -> m a) ->
-  -- | Continuation if the dependency was added.
-  (Maybe FilePath -> m a) ->
-  -- | Final result.
-  m a
-depends input onerror onsuccess =
-  case input of
-    Input.FromFile file -> go file
-    Input.FromHandle {} -> onsuccess Nothing
-    Input.FromText {} -> onsuccess Nothing
-  where
-    go :: FilePath -> m a
-    go file = do
-      Runtime {..} <- get
-      case Stack.top stack of
-        Nothing -> onsuccess (Just file)
-        Just top -> do
-          full <- FilePath.makeAbsoluteToFile top file
-          case Cycle.depends top full cycles of
-            (Cycle.Cycles cs, _) ->
-              onerror (Error.DependencyCycleError top file cs)
-            (Cycle.NoCycles, deps) -> do
-              #cycles .= deps
-              onsuccess (Just full)
+  -- | The file that is being added as a dependency.
+  FilePath ->
+  -- | The absolute path to the new dependency.
+  m FilePath
+depends file = do
+  Runtime {..} <- get
+  case Input.toFilePath (Stack.top stack) of
+    Nothing -> liftIO (Directory.makeAbsolute file)
+    Just top -> do
+      full <- FilePath.makeAbsoluteToFile top file
+      case Cycle.depends top full cycles of
+        (Cycle.Cycles cs, _) ->
+          throwError (Error.DependencyCycleError top file cs)
+        (Cycle.NoCycles, deps) -> do
+          #cycles .= deps
+          pure full
 
--- | Given an absolute path name, make it relative to file currently
--- being generated.  It is assumed that the file being generated can
--- be derived from the file at the bottom of the stack.
+-- | Given an absolute path name, make it relative to the file
+-- currently being generated.
+--
+-- It is assumed that the file being generated can be derived from the
+-- file at the bottom of the stack.  If the bottom of the stack isn't
+-- a 'FilePath' the file will be make relative to the output
+-- directory.
 --
 -- @since 0.5.0.0
 relativeToOutput ::
@@ -110,46 +110,59 @@ relativeToOutput ::
   m FilePath
 relativeToOutput input output path = do
   Runtime {stack} <- get
-  case Stack.bottom stack of
-    Nothing -> pure path
-    Just file -> do
-      let inoutdir = FilePath.toOutputPath input output file
-      FilePath.makeRelativeToDir (FilePath.takeDirectory inoutdir) path
+  let dir =
+        Stack.bottom stack
+          & Input.toFilePath
+          & fmap (FilePath.toOutputPath input output)
+          & fmap FilePath.takeDirectory
+          & fromMaybe output
+  FilePath.makeRelativeToDir dir path
 
--- | Read input and pass it to a continuation, keeping track of
--- evaluation housekeeping (e.g., dependency tracking).
+-- | Read a file and pass its contents to a continuation, keeping
+-- track of evaluation housekeeping (e.g., dependency tracking).
 --
--- @since 0.5.0.0
-withInput ::
+-- @since 0.6.0
+withFileContents ::
   forall m a.
   MonadIO m =>
+  MonadError Error.Error m =>
   MonadState Runtime m =>
-  -- | The input to read.
-  Input.Input ->
-  -- | Continuation if an error occurs.
-  (Error.Error -> m a) ->
-  -- | Continuation if the input could be read.
-  (Maybe FilePath -> LText -> m a) ->
+  -- | The file to read.
+  FilePath ->
+  -- | Token to narrow input to.
+  Maybe Token ->
+  -- | Continuation if the file could be read.
+  (FilePath -> LText -> m a) ->
   -- | Final result.
   m a
-withInput input abort f = do
-  depends input abort $ \path ->
-    Input.readInput (maybe input Input.FromFile path)
-      >>= either (abort . Error.InputError input) (go path)
+withFileContents = dependThenGo
   where
-    go :: Maybe FilePath -> LText -> m a
-    go path content =
-      case path of
-        Nothing -> f path content
-        Just file -> do
-          #stack %= Stack.push file
-          result <- f path content
-          #stack %= Stack.pop
-          pure result
+    -- Hack to prevent the go function from seeing the original file name.
+    dependThenGo :: FilePath -> Maybe Token -> (FilePath -> LText -> m a) -> m a
+    dependThenGo file token f = depends file >>= \file' -> go file' token f
+
+    go :: FilePath -> Maybe Token -> (FilePath -> LText -> m a) -> m a
+    go file token f = do
+      let input = Input.FromFile file
+      content <-
+        Input.readInput input
+          >>= either (throwError . (`Error.InputError` input)) pure
+      narrowed <-
+        case token of
+          Nothing ->
+            pure content
+          Just t ->
+            Format.narrow (Format.fromInput input) t content
+              & either (throwError . (`Error.FormatError` input)) pure
+
+      #stack %= Stack.push input
+      result <- f file narrowed
+      #stack %= Stack.pop
+      pure result
 
 -- | Low-level access to command fingerprint status.
 --
--- @since 0.5.0.0
+-- @since 0.6.0
 commandStatus ::
   MonadIO m =>
   MonadState Runtime m =>
@@ -157,24 +170,24 @@ commandStatus ::
   FilePath ->
   -- | The command to verity.
   Text ->
-  -- | Continuation to call if an error occurs.
-  (Error.Error -> m a) ->
   -- | Continuation called with the file at the top of the stack, and
   -- the command fingerprint status.
   (FilePath -> Fingerprint.Status -> m a) ->
   -- | Final result.
   m a
-commandStatus allowDir command onerror f = do
+commandStatus allowDir command f = do
   Runtime {fpcache, stack} <- get
-  case Stack.top stack of
-    Nothing ->
-      onerror (Error.InternalBugError "verifyCommand called on empty stack")
-    Just top -> do
-      (fp, cache) <- Fingerprint.read fpcache allowDir top
-      #fpcache .= cache
-      case Fingerprint.verify [command] . fold <$> fp of
-        Nothing -> f top Fingerprint.Mismatch
-        Just status -> f top status
+  currentFile <-
+    Stack.top stack
+      & Input.toFilePath
+      & maybe (liftIO Directory.getCurrentDirectory) pure
+
+  (fp, cache) <- Fingerprint.read fpcache allowDir currentFile
+  #fpcache .= cache
+
+  case Fingerprint.verify [command] . fold <$> fp of
+    Nothing -> f currentFile Fingerprint.Mismatch
+    Just status -> f currentFile status
 
 -- | Verify that a command has been approved for executing.
 --
@@ -193,7 +206,7 @@ verifyCommand ::
   -- | Final result.
   m a
 verifyCommand allowDir command onerror onsuccess = do
-  commandStatus allowDir command onerror $ \file status ->
+  commandStatus allowDir command $ \file status ->
     case status of
       Fingerprint.Mismatch ->
         onerror (Error.CommandBlockedError file command)

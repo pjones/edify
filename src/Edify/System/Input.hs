@@ -14,8 +14,7 @@
 -- License: Apache-2.0
 module Edify.System.Input
   ( Input (..),
-    filePathToInput,
-    filePathFromInput,
+    toFilePath,
     readInput,
 
     -- * Encoding and Decoding Files
@@ -40,7 +39,6 @@ import qualified Data.Text.Lazy.IO.Utf8 as Utf8
 import qualified Data.Yaml as YAML
 import qualified Edify.Text.Fingerprint as Fingerprint
 import qualified Edify.Text.Pretty as P
-import System.Directory (getCurrentDirectory)
 import qualified System.Directory as Dir
 import qualified System.FilePath as FilePath
 
@@ -130,26 +128,14 @@ renderError = \case
           P.fillSep msg
         ]
 
--- | Figure out what kind of input a file path refers to.
+-- | Extract a 'FilePath' from an 'Input'.
 --
--- @since 0.5.0.0
-filePathToInput :: Maybe FilePath -> Input
-filePathToInput = \case
-  Nothing -> FromHandle stdin
-  Just "-" -> FromHandle stdin
-  Just file -> FromFile file
-
--- | Get a file path (or directory path) from an 'Input'.
---
--- If the input is a file, that file path is returned in 'Right'.
--- Otherwise the current directory is returned in 'Left'.
---
--- @since 0.5.0.0
-filePathFromInput :: MonadIO m => Input -> m (Either FilePath FilePath)
-filePathFromInput = \case
-  FromFile path -> pure (Right path)
-  FromHandle _ -> liftIO getCurrentDirectory <&> Left
-  FromText _ -> liftIO getCurrentDirectory <&> Left
+-- @since 0.6.0
+toFilePath :: Input -> Maybe FilePath
+toFilePath = \case
+  FromFile path -> Just path
+  FromHandle {} -> Nothing
+  FromText {} -> Nothing
 
 -- | Read and return input.
 --

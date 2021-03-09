@@ -1,6 +1,6 @@
 cabal-version:      2.4
 name:               edify
-version:            0.5.2
+version:            0.6.0
 license:            Apache-2.0
 license-file:       LICENSE
 author:             Peter Jones <pjones@devalot.com>
@@ -99,6 +99,7 @@ common dependencies
     , optparse-applicative         ^>=0.16
     , prettyprinter                ^>=1.6
     , prettyprinter-ansi-terminal  ^>=1.1
+    , process                      ^>=1.6
     , recursion-schemes            ^>=5.1
     , relude                       >=0.6    && <0.8
     , shake                        ^>=0.19
@@ -120,6 +121,7 @@ library
     Edify.Compiler.Allow
     Edify.Compiler.Asset
     Edify.Compiler.Audit
+    Edify.Compiler.Build
     Edify.Compiler.Cycle
     Edify.Compiler.Error
     Edify.Compiler.Eval

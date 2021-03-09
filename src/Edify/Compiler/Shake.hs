@@ -46,7 +46,6 @@ import qualified Edify.Project.Target as Target
 import qualified Edify.System.Exit as Exit
 import qualified Edify.System.FilePath as FilePath
 import qualified Edify.System.Input as Input
-import qualified Edify.Text.Format as Format
 import qualified Edify.Text.Pretty as P
 import qualified GHC.Conc as GHC
 import qualified System.Directory as Directory
@@ -106,40 +105,30 @@ eval user project target cmdmode assets = Free.iterM go
         let indir = project ^. #projectTopLevel . #projectDirectory
             outdir = project ^. #projectConfig . #projectOutputDirectory
             ext = Asset.assetExtension (Project.targetFormat target)
-        Eval.depends (Input.FromFile file) abort $ \case
-          Nothing -> do
-            warn
-              ( "internal error: failed to make path to asset absolute: "
-                  <> toText file
-              )
-            k file
-          Just path
-            | HashMap.member (FilePath.takeExtension path) assets -> do
-              let output =
-                    FilePath.toOutputPath indir outdir path
-                      `FilePath.addExt` ext
-              shake (Shake.need [output])
-              relative <- Eval.relativeToOutput indir outdir output
-              k relative
-            | otherwise -> do
-              shake (Shake.need [path])
-              relative <- Eval.relativeToOutput indir outdir path
-              k relative
-      Lang.ReadInput input token subexp k -> do
-        x <- Eval.withInput input abort $ \path content -> do
-          whenJust path (shake . Shake.need . one)
-          narrowed <-
-            case token of
-              Nothing ->
-                pure content
-              Just t ->
-                Format.narrow (Format.fromInput input) t content
-                  & either (abort . Lang.FormatError input) pure
-          eval user project target cmdmode assets (subexp narrowed)
+        fullPath <- Eval.depends file
+        if HashMap.member (FilePath.takeExtension fullPath) assets
+          then do
+            let output =
+                  FilePath.toOutputPath indir outdir fullPath
+                    `FilePath.addExt` ext
+            shake (Shake.need [output])
+            relative <- Eval.relativeToOutput indir outdir output
+            k relative
+          else do
+            shake (Shake.need [fullPath])
+            relative <- Eval.relativeToOutput indir outdir fullPath
+            k relative
+      Lang.WithFileContents file token subexp k -> do
+        x <- Eval.withFileContents file token $ \path content -> do
+          shake (Shake.need [path])
+          eval user project target cmdmode assets (subexp content)
         k x
       Lang.Exec (pending, input) k ->
         verifyCommandWithBypass pending $ \approved -> do
-          dir <- gets Eval.stack >>= Stack.directory
+          stack <- gets Eval.stack
+          dir <-
+            Stack.directory Input.toFilePath stack
+              & maybe (liftIO Directory.getCurrentDirectory) pure
           let copts =
                 [ Shake.Cwd dir,
                   Shake.StdinBS $ encodeUtf8 input,
@@ -148,8 +137,9 @@ eval user project target cmdmode assets = Free.iterM go
           Shake.Stdout (output :: LByteString) <-
             shake $ Shake.command copts (toString approved) []
           k (decodeUtf8 output)
-      Lang.Abort e ->
-        abort e
+      Lang.Abort f -> do
+        top <- gets Eval.stack <&> Stack.top
+        abort (f top)
 
     warn :: Text -> Eval ()
     warn = toString >>> Shake.putWarn >>> shake
@@ -292,8 +282,14 @@ markdownRule user project target cmdmode assets =
    in fileExtensionRule project (extIn, extOut) action
   where
     action :: FilePath -> FilePath -> Shake.Action ()
-    action input output = do
-      let compiler = Markdown.compile (Input.FromFile input)
+    action file output = do
+      let input = Input.FromFile file
+
+      contents <-
+        Input.readInput input
+          >>= either (liftIO . throwIO . (`Error.InputError` input)) pure
+
+      let compiler = Markdown.compile contents
 
       -- Depend on the project configuration:
       whenJust (project ^. #projectReadFrom) (Shake.need . one)
@@ -301,7 +297,7 @@ markdownRule user project target cmdmode assets =
       ast <-
         eval user project target cmdmode assets compiler
           & runExceptT
-          & evaluatingStateT Eval.emptyRuntime
+          & evaluatingStateT (Eval.emptyRuntime input)
           >>= either (liftIO . throwIO) pure
       liftIO (Utf8.writeFile output (ast & AST.markdownT & Builder.toLazyText))
 
