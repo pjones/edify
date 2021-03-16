@@ -2,6 +2,31 @@
 
 ## 0.6.0 (Unreleased)
 
+### New Features
+
+  * Manual dependencies can now be added to targets.  This is useful
+    if your target command uses a script or other file that, when
+    changed, should trigger a rebuild.
+
+    Use the `dependencies` key in the target definition to add
+    dependencies:
+
+    ```yml
+    targets:
+        - name: web
+          format: html
+
+          dependencies:
+            - meta/style.html
+
+          command:
+            pandoc --from=markdown
+                   --to=html
+                   --include-in-header=%p/meta/style.html
+                   --output=%o
+                   %i
+    ```
+
 ### Library Changes
 
   * A new module (`Edify.Compiler.Build`) has been added that provides
