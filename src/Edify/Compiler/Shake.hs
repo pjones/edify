@@ -174,8 +174,7 @@ assetEval ::
   (FilePath, FilePath) ->
   -- | Instructions converted to a Shake action.
   Shake.Action ()
-assetEval project compiler (input, output) = do
-  Shake.need [input]
+assetEval project compiler (input, output) =
   Free.iterM go (compiler (input, output))
   where
     go = \case
@@ -237,6 +236,7 @@ fileExtensionRule project (inputExt, extOut) f =
         let indir = project ^. #projectTopLevel . #projectDirectory
             outdir = project ^. #projectConfig . #projectOutputDirectory
             input = FilePath.toInputPathViaInputExt indir outdir inputExt output
+        Shake.need [input]
         f input output
 
 -- | Generate Shake rules for each asset compiler listed in the 'Asset.AssetMap'.
@@ -337,7 +337,7 @@ targetRule project target =
                 Target.commandOutputFile = output
               }
           cmd = Project.targetCommand target args
-      Shake.need [input]
+      Shake.need (Project.targetDependencies target)
       Shake.command_ ops (toString cmd) []
 
 -- | All Shake rules for building an entire project.

@@ -40,6 +40,7 @@ import Edify.Project.Error
 import qualified Edify.System.FilePath as FilePath
 import Edify.Text.JSON
 import qualified Edify.Text.Placeholders as Placeholders
+import qualified System.Directory as Directory
 
 -- | Output formats.
 --
@@ -99,7 +100,9 @@ data TargetF (f :: Readiness) = Target
         (HashSet (CaseInsensitive.CI Attrs.CssIdent)),
     -- | A shell command used to convert Markdown to the desired
     -- format.
-    targetCommand :: Checked f Text (CommandArgs -> Text)
+    targetCommand :: Checked f Text (CommandArgs -> Text),
+    -- | Additional dependencies to track.
+    targetDependencies :: Default f [FilePath]
   }
   deriving stock (Generic)
 
@@ -156,7 +159,7 @@ targetsByFileExtension = foldr go (Right mempty)
 -- | Resolve a 'Target' to its final value.
 --
 -- @since 0.5.0.0
-resolve :: Monad m => TargetF Parsed -> ExceptT Error m (TargetF Resolved)
+resolve :: MonadIO m => TargetF Parsed -> ExceptT Error m (TargetF Resolved)
 resolve target@Target {..} = do
   ext <-
     case resolveTargetExtension target of
@@ -169,13 +172,19 @@ resolve target@Target {..} = do
 
   cmd <- hoistEither (resolveCommand targetCommand)
 
+  deps <-
+    traverse
+      (liftIO . Directory.makeAbsolute)
+      (fromMaybe mempty targetDependencies)
+
   pure
     Target
       { targetName = targetName,
         targetFileExtension = ext,
         targetFormat = targetFormat,
         targetRemoveDivs = unwantedDivClasses,
-        targetCommand = cmd
+        targetCommand = cmd,
+        targetDependencies = deps
       }
   where
     resolveCommand :: Text -> Either Error (CommandArgs -> Text)
