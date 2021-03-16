@@ -75,11 +75,11 @@ pdf2png (input, output) = do
       output
     ]
 
--- | Graphviz @dot -> pdf@.
+-- | Graphviz @gv -> pdf@.
 --
--- @since 0.5.0.0
-dot2pdf :: (FilePath, FilePath) -> Asset
-dot2pdf (input, output) = do
+-- @since 0.6.0
+graphviz2pdf :: (FilePath, FilePath) -> Asset
+graphviz2pdf (input, output) = do
   let ps = output -<.> ".ps"
       raw = output -<.> ".rawpdf"
 
@@ -87,11 +87,11 @@ dot2pdf (input, output) = do
   command "ps2pdf" [ps, raw]
   command "pdfcrop" [raw, output]
 
--- | Graphviz @dot -> png@.
+-- | Graphviz @gv -> png@.
 --
--- @since 0.5.0.0
-dot2png :: (FilePath, FilePath) -> Asset
-dot2png (input, output) = do
+-- @since 0.6.0
+graphviz2png :: (FilePath, FilePath) -> Asset
+graphviz2png (input, output) = do
   (width, height) <- sizeHints
 
   -- Conversion to PNG is a bit weird because you need to set the size
@@ -209,10 +209,16 @@ type AssetMap =
 assets :: AssetMap
 assets =
   fromList
-    [ ( FilePath.Ext "dot",
+    [ ( FilePath.Ext "gv",
         \case
-          Project.PDF -> dot2pdf
-          Project.HTML -> dot2png
+          Project.PDF -> graphviz2pdf
+          Project.HTML -> graphviz2png
+      ),
+      -- For backwards compatibility:
+      ( FilePath.Ext "dot",
+        \case
+          Project.PDF -> graphviz2pdf
+          Project.HTML -> graphviz2png
       ),
       ( FilePath.Ext "svg",
         \case
