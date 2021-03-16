@@ -53,28 +53,30 @@ matchingBracketP (opening, closing) =
               else pure mempty
       pure (toText chars <> rest)
 
--- | Extract the text between double quotes.  If there are any
--- backslash escaped quotes they will be extracted without the
+-- | Extract the text between double or single quotes.  If there are
+-- any backslash escaped quotes they will be extracted without the
 -- backslash.
 --
 -- @since 0.5.0.0
 quotedTextP :: Atto.Parser Text
-quotedTextP = Atto.char '"' *> go <* Atto.char '"'
+quotedTextP = do
+  char <- Atto.satisfy (\c -> c == '"' || c == '\'')
+  go char <* Atto.char char
   where
-    go :: Atto.Parser Text
-    go = do
-      chars <- many $ Atto.satisfy (\c -> c /= '\\' && c /= '"')
+    go :: Char -> Atto.Parser Text
+    go quote = do
+      chars <- many $ Atto.satisfy (\c -> c /= '\\' && c /= quote)
       next <- Atto.peekChar'
       if next == '\\'
-        then (toText chars <>) <$> escaped
+        then (toText chars <>) <$> escaped quote
         else pure (toText chars)
-    escaped :: Atto.Parser Text
-    escaped = do
+    escaped :: Char -> Atto.Parser Text
+    escaped quote = do
       _ <- Atto.char '\\'
       c <- Atto.anyChar
-      if c == '"'
-        then ("\"" <>) <$> go
-        else (toText ['\\', c] <>) <$> go
+      if c == quote
+        then (one quote <>) <$> go quote
+        else (toText ['\\', c] <>) <$> go quote
 
 -- | Render the given text inside quotes.  Any quotes in the text that
 -- are not escape will be escaped with a backslash.
