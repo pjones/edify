@@ -106,7 +106,15 @@ defTest = do
   mapM_
     (\(input, expect) -> parseOnly linkDefinitionP input >>= (@?= expect))
     [ -- Title given after newline:
-      ("[01]: a \n \"b\"\n", Definition "01" "a" (Just "b") "\n")
+      ("[01]: a \n \"b\"\n", Definition "01" "a" (Just "b") "\n"),
+      -- Title given in double quotes:
+      ("[02]: a \"title\"\n", Definition "02" "a" (Just "title") "\n"),
+      -- Title given in single quotes:
+      ("[03]: a 'title'\n", Definition "03" "a" (Just "title") "\n"),
+      -- Title wrapped in parentheses:
+      ("[04]: a (title)\n", Definition "04" "a" (Just "title") "\n"),
+      -- Link wrapped in angle brackets:
+      ("[05]: <b>\n", Definition "05" "b" Nothing "\n")
     ]
 
   mapM_

@@ -27,6 +27,13 @@
                    %i
     ```
 
+### Bug Fixes
+
+  * Markdown link definitions can now have titles in single quotes or
+    parentheses.  The URL in a link definition can also be wrapped in
+    angle brackets.  This brings Edify inline with Pandoc for link
+    definitions.
+
 ### Library Changes
 
   * A new module (`Edify.Compiler.Build`) has been added that provides

@@ -236,7 +236,10 @@ linkDefinitionP = do
 -- @since 0.5.0.0
 definitionBodyP :: Atto.Parser (Text, Maybe Text)
 definitionBodyP = do
-  url <- Atto.many1 (Atto.satisfy (not . isSpace)) <&> toText
+  url <-
+    matchingBracketP ('<', '>')
+      <|> (Atto.many1 (Atto.satisfy (not . isSpace)) <&> toText)
+
   title <- optional titleP
   pure (url, title)
 
@@ -251,7 +254,7 @@ titleP = do
       ( Atto.endOfLine
           *> Atto.many1 (Atto.satisfy Atto.isHorizontalSpace)
       )
-  quotedTextP
+  quotedTextP <|> matchingBracketP ('(', ')')
 
 -- | Render a link as text.
 --
