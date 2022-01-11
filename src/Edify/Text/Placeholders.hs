@@ -23,7 +23,8 @@ module Edify.Text.Placeholders
 where
 
 import qualified Data.Attoparsec.Text as Atto
-import Data.Functor.Foldable (Fix, cata, embed)
+import Data.Fix (Fix)
+import Data.Functor.Foldable (cata, embed)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text.Lazy.Builder as Builder
 

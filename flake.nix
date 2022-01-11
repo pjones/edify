@@ -2,7 +2,7 @@
   description = "A Markdown processor/compiler";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-20.09";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-21.11";
   };
 
   outputs = { self, nixpkgs, ... }:
@@ -26,17 +26,7 @@
           let
             pkgs = nixpkgsFor.${system};
             hlib = pkgs.haskell.lib;
-
-            haskell = pkgs.haskellPackages.override
-              (orig: {
-                overrides =
-                  nixpkgs.lib.composeExtensions
-                    (orig.overrides or (_: _: { }))
-                    (self: super: {
-                      aeson = super.aeson_1_5_2_0;
-                      optparse-applicative = super.optparse-applicative_0_16_0_0;
-                    });
-              });
+            haskell = pkgs.haskellPackages;
           in
           {
             # Full Haskell package with shared/static libraries:

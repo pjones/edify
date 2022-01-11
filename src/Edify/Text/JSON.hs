@@ -14,9 +14,11 @@
 -- License: Apache-2.0
 module Edify.Text.JSON
   ( GenericJSON (..),
-    RecursiveJSON (..),
+    GenericJSON1 (..),
     Aeson.ToJSON,
     Aeson.FromJSON,
+    Aeson.ToJSON1,
+    Aeson.FromJSON1,
 
     -- * Two Types, One JSON Document
     (:*:) (..),
@@ -27,19 +29,17 @@ module Edify.Text.JSON
     Resolved,
     Default,
     Checked,
+
+    -- * Re-exports
+    Generic1,
   )
 where
 
 import qualified Control.Lens as Lens
 import qualified Data.Aeson as Aeson
-import qualified Data.Functor.Foldable as Recursion
 import qualified Data.HashMap.Strict as HashMap
-import GHC.Generics (Rep)
+import GHC.Generics (Generic1, Rep, Rep1)
 import qualified Generics.SOP as SOP
-
--- | Type wrapper for automatic JSON deriving.
-newtype GenericJSON a = GenericJSON
-  {genericJSON :: a}
 
 -- | Default JSON decoding/encoding options.
 aesonOptions :: Aeson.Options
@@ -55,6 +55,10 @@ aesonOptions =
   where
     dropFirstWord = dropWhile (/= '-') >>> drop 1
     kebabCase = Aeson.camelTo2 '-'
+
+-- | Type wrapper for automatic JSON deriving.
+newtype GenericJSON a = GenericJSON
+  {genericJSON :: a}
 
 instance
   ( Generic a,
@@ -74,24 +78,27 @@ instance
   where
   parseJSON = fmap GenericJSON . Aeson.genericParseJSON aesonOptions
 
--- | Aeson instances for types using @recursion-schemes@.
-newtype RecursiveJSON r = RecursiveJSON r
+-- | Type wrapper for automatic JSON1 deriving.
+newtype GenericJSON1 f a = GenericJSON1
+  {genericJSON1 :: f a}
 
 instance
-  ( Recursion.Recursive r,
-    Aeson.ToJSON (Recursion.Base r Aeson.Value)
+  ( Generic1 f,
+    Aeson.GFromJSON Aeson.One (Rep1 f)
   ) =>
-  Aeson.ToJSON (RecursiveJSON r)
+  Aeson.FromJSON1 (GenericJSON1 f)
   where
-  toJSON (RecursiveJSON r) = Recursion.cata Aeson.toJSON r
+  liftParseJSON f g v = GenericJSON1 <$> Aeson.genericLiftParseJSON aesonOptions f g v
 
 instance
-  ( Recursion.Corecursive r,
-    Aeson.FromJSON (Recursion.Base r r)
+  ( Generic1 f,
+    Aeson.GToJSON' Aeson.Value Aeson.One (Rep1 f),
+    Aeson.GToJSON' Aeson.Encoding Aeson.One (Rep1 f)
   ) =>
-  Aeson.FromJSON (RecursiveJSON r)
+  Aeson.ToJSON1 (GenericJSON1 f)
   where
-  parseJSON = fmap (RecursiveJSON . Recursion.embed) . Aeson.parseJSON
+  liftToJSON f g = Aeson.genericLiftToJSON aesonOptions f g . genericJSON1
+  liftToEncoding f g = Aeson.genericLiftToEncoding aesonOptions f g . genericJSON1
 
 -- | Join two types together so they work with the same JSON document.
 newtype (:*:) a b = Join

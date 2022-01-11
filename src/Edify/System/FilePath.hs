@@ -265,7 +265,8 @@ decodePathName encoded =
             FilePath.dropExtension file
               & encodeUtf8
               & Base16.decode
-              & fst
-              & decodeUtf8
-              & (FilePath.<.> FilePath.takeExtension file)
+              & rightToMaybe
+              <&> decodeUtf8
+              <&> (FilePath.<.> FilePath.takeExtension file)
         )
+      & join

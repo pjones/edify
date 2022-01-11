@@ -104,8 +104,8 @@ data Link r
         linkDest :: Destination
       }
   | AutoLink Text
-  deriving stock (Generic, Show, Eq, Functor)
-  deriving (ToJSON, FromJSON) via GenericJSON (Link r)
+  deriving stock (Generic1, Show, Eq, Functor)
+  deriving (ToJSON1, FromJSON1) via GenericJSON1 Link
 
 -- | A link definition (for reference links).
 --

@@ -36,7 +36,8 @@ import Control.Lens ((.~), (^.), _2)
 import qualified Data.Attoparsec.Text as Atto
 import qualified Data.CaseInsensitive as CaseInsensitive
 import qualified Data.Char as Char
-import Data.Functor.Foldable (Fix (..), cata, embed, project)
+import Data.Fix (Fix (..))
+import Data.Functor.Foldable (cata, embed, project)
 import Data.Generics.Labels ()
 import qualified Data.HashSet as HashSet
 import Data.Semigroup (Max (..))
@@ -88,17 +89,13 @@ data FenceF t r
   | -- | Div fences.  Their bodies are made up of the other
     -- constructors.
     DivFence DivStyle Props [r]
-  deriving stock (Generic, Show, Eq, Functor)
-  deriving (ToJSON, FromJSON) via GenericJSON (FenceF t r)
+  deriving stock (Generic1, Show, Eq, Functor)
+  deriving (ToJSON1, FromJSON1) via GenericJSON1 (FenceF t)
 
 -- | An explicitly recursive fence structure.
 --
 -- @since 0.5.0.0
 type Fence t = Fix (FenceF t)
-
-deriving via (RecursiveJSON (Fence t)) instance ToJSON t => ToJSON (Fence t)
-
-deriving via (RecursiveJSON (Fence t)) instance FromJSON t => FromJSON (Fence t)
 
 -- | Parser for a recursive fence block.
 --

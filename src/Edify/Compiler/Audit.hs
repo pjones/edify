@@ -25,8 +25,9 @@ where
 import Control.Monad.Except (throwError)
 import qualified Control.Monad.Free.Church as Free
 import qualified Data.Aeson as Aeson
+import Data.Fix (Fix (..))
 import Data.Foldable (foldrM)
-import Data.Functor.Foldable (Fix (..), cata, embed)
+import Data.Functor.Foldable (cata, embed)
 import Data.Generics.Labels ()
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Edify.Compiler.Error as Error
@@ -76,17 +77,13 @@ data AuditF r
         auditCommandText :: Text,
         auditCommandStatus :: Fingerprint.Status
       }
-  deriving stock (Generic, Functor, Foldable, Traversable)
-  deriving (ToJSON, FromJSON) via GenericJSON (AuditF r)
+  deriving stock (Generic1, Functor, Foldable, Traversable)
+  deriving (ToJSON1, FromJSON1) via GenericJSON1 AuditF
 
 -- | Fully recursive variant of 'AuditF'.
 --
 -- @since 0.5.0.0
 type Audit = Fix AuditF
-
-deriving via (RecursiveJSON Audit) instance ToJSON Audit
-
-deriving via (RecursiveJSON Audit) instance FromJSON Audit
 
 instance Semigroup Audit where
   (<>) (Fix (AuditItems xs)) (Fix (AuditItems ys)) = embed $ AuditItems (xs <> ys)

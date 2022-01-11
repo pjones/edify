@@ -40,6 +40,10 @@
     an easy-to-use `convert` function to convert Edify-flavored
     Markdown to whatever Markdown variant you are using.
 
+### Minor Releases
+
+  * 0.6.1: Update dependencies and add a Nix flake
+
 ## 0.5.0 (March 2, 2021)
 
   * First documented version

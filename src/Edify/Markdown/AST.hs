@@ -28,7 +28,8 @@ module Edify.Markdown.AST
 where
 
 import qualified Data.Attoparsec.Text as Atto
-import Data.Functor.Foldable (Fix (..), cata)
+import Data.Fix (Fix (..))
+import Data.Functor.Foldable (cata)
 import Data.Generics.Labels ()
 import qualified Data.Text.Lazy.Builder as LTB
 import Edify.Markdown.Attributes (Attributes)
@@ -54,17 +55,13 @@ data InlineF r
   = TextChunkF Text
   | ImageF Image
   | LinkF (Link [r])
-  deriving stock (Generic, Show, Eq, Functor)
-  deriving (ToJSON, FromJSON) via GenericJSON (InlineF r)
+  deriving stock (Generic1, Show, Eq, Functor)
+  deriving (ToJSON1, FromJSON1) via GenericJSON1 InlineF
 
 -- | Recursive inline element.
 --
 -- @since 0.5.0.0
 type Inline = Fix InlineF
-
-deriving via (RecursiveJSON Inline) instance ToJSON Inline
-
-deriving via (RecursiveJSON Inline) instance FromJSON Inline
 
 -- | Block elements in Markdown.
 --

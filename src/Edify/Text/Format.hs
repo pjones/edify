@@ -26,12 +26,12 @@ module Edify.Text.Format
   )
 where
 
-import qualified Data.Text.Prettyprint.Doc as PP
-import qualified Data.Text.Prettyprint.Doc.Util as PP
 import qualified Edify.Markdown.Narrow as Markdown
 import qualified Edify.System.Input as Input
 import Edify.Text.Narrow (Token (..))
 import qualified Edify.Text.Narrow as Narrow
+import qualified Prettyprinter as PP
+import qualified Prettyprinter.Util as PP
 import System.FilePath (takeExtension)
 
 -- | Errors that can occur.

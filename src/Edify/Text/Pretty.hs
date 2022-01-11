@@ -27,16 +27,16 @@ module Edify.Text.Pretty
     yellow,
 
     -- * Re-exports
-    module Data.Text.Prettyprint.Doc,
-    module Data.Text.Prettyprint.Doc.Util,
+    module Prettyprinter,
+    module Prettyprinter.Util,
     module Prettyprinter.Render.Terminal,
   )
 where
 
 import qualified Data.Text as Text
-import Data.Text.Prettyprint.Doc
-import Data.Text.Prettyprint.Doc.Util
+import Prettyprinter
 import Prettyprinter.Render.Terminal
+import Prettyprinter.Util
 import qualified System.FilePath as FilePath
 import Prelude hiding (group)
 

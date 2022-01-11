@@ -28,12 +28,12 @@ where
 import qualified Data.Attoparsec.Text.Lazy as Atto
 import qualified Data.CaseInsensitive as CaseInsensitive
 import qualified Data.Text.Lazy.Builder as LTB
-import qualified Data.Text.Prettyprint.Doc as PP
-import qualified Data.Text.Prettyprint.Doc.Util as PP
 import Edify.Markdown.Attributes
 import Edify.Markdown.Heading
 import Edify.Text.JSON
 import Edify.Text.Narrow (Token (..))
+import qualified Prettyprinter as PP
+import qualified Prettyprinter.Util as PP
 
 -- | Errors that may occur.
 --
