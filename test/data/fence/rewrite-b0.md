@@ -6,7 +6,7 @@ This div should be left alone.
   Neat.
   ```
 
-  <div id=plain class="one two" add-fences=yes rewrite=yes>
+  <div add-fences=yes class="one two" id=plain rewrite=yes>
     Sweet.
   </div>
   ::: {discard=yes}

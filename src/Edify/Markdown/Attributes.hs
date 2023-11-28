@@ -332,7 +332,8 @@ attributesT attrs =
 -- @since 0.5.0.0
 keyValueT :: [(Name, Value)] -> LTB.Builder
 keyValueT =
-  map go
+  sortOn (fst >>> getAttrName)
+    >>> map go
     >>> intersperse (LTB.singleton ' ')
     >>> mconcat
   where

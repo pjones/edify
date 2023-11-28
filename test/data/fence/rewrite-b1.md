@@ -8,7 +8,7 @@ This div should be left alone.
   ```
   ````
 
-  <div id=plain class="one two" add-fences=yes rewrite=no>
+  <div add-fences=yes class="one two" id=plain rewrite=no>
   ```
   Sweet.
   ```
