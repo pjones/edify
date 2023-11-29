@@ -331,5 +331,5 @@ reinterpretLinkTextP ::
 reinterpretLinkTextP parser = \case
   Link {..} ->
     (`Link` linkDest)
-      <$> Atto.parseOnly (parser <* Atto.endOfInput) linkText
+      <$> Atto.parseOnly (parser <* Atto.endOfInput) (toLazy linkText)
   AutoLink t -> pure (AutoLink t)

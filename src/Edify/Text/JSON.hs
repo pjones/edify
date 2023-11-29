@@ -37,7 +37,8 @@ where
 
 import qualified Control.Lens as Lens
 import qualified Data.Aeson as Aeson
-import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Aeson.Key as Aeson.Key
+import qualified Data.Aeson.KeyMap as KeyMap
 import GHC.Generics (Generic1, Rep, Rep1)
 import qualified Generics.SOP as SOP
 
@@ -132,8 +133,9 @@ instance
             SOP.datatypeInfo (Proxy :: Proxy a)
               & SOP.constructorInfo
               & fieldNames
-          leftObj = HashMap.filterWithKey (\k _v -> k `elem` leftFields) v
-          rightObj = HashMap.difference v leftObj
+              & map Aeson.Key.fromText
+          leftObj = KeyMap.filterWithKey (\k _v -> k `elem` leftFields) v
+          rightObj = KeyMap.difference v leftObj
        in fmap
             Join
             ( (,)

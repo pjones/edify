@@ -1,7 +1,4 @@
-let sources = import ./sources.nix;
-in
-{ pkgs ? import sources.nixpkgs { }
-}:
+{ pkgs }:
 
 with pkgs; [
   inkscape # For SVG -> PDF

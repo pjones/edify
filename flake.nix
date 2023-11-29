@@ -2,7 +2,7 @@
   description = "A Markdown processor/compiler";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-21.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
   };
 
   outputs = { self, nixpkgs, ... }:
@@ -15,10 +15,12 @@
         nixpkgs.lib.genAttrs supportedSystems (system: f system);
 
       # Attribute set of nixpkgs for each system:
-      nixpkgsFor = forAllSystems (system: import nixpkgs { inherit system; });
+      nixpkgsFor = forAllSystems (system:
+        import nixpkgs { inherit system; });
 
       # Run-time dependencies:
-      deps = system: import nix/deps.nix { pkgs = nixpkgsFor.${system}; };
+      deps = system:
+        import nix/deps.nix { pkgs = nixpkgsFor.${system}; };
     in
     {
       packages = forAllSystems
@@ -34,7 +36,7 @@
 
             # Just the edify executable:
             bin =
-              hlib.generateOptparseApplicativeCompletion "edify"
+              haskell.generateOptparseApplicativeCompletions [ "edify" ]
                 (hlib.justStaticExecutables
                   (self.packages.${system}.lib.overrideAttrs (orig: {
                     buildInputs =
@@ -53,18 +55,18 @@
                           --prefix PATH : "${nixpkgs.lib.makeBinPath (deps system)}"
                       '';
                   })));
+
+            # Default package:
+            default = self.packages.${system}.bin;
           });
 
-      defaultPackage =
-        forAllSystems (system: self.packages.${system}.bin);
-
-      overlay = final: prev: {
+      overlays.default = final: prev: {
         pjones = (prev.pjones or { }) //
           { edify = self.packages.${prev.system}.bin; };
       };
 
-      devShell = forAllSystems (system:
-        nixpkgsFor.${system}.haskellPackages.shellFor {
+      devShells = forAllSystems (system: {
+        default = nixpkgsFor.${system}.haskellPackages.shellFor {
           packages = _: [ self.packages.${system}.lib ];
           withHoogle = true;
           buildInputs = with nixpkgsFor.${system}; [
@@ -74,6 +76,7 @@
             haskellPackages.hlint
             haskellPackages.ormolu
           ] ++ deps system;
-        });
+        };
+      });
     };
 }

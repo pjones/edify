@@ -98,12 +98,12 @@ makeAbsoluteToDir ::
   m FilePath
 makeAbsoluteToDir dir file
   | FilePath.isAbsolute file =
-    liftIO (Directory.canonicalizePath file)
+      liftIO (Directory.canonicalizePath file)
   | otherwise =
-    FilePath.normalise dir
-      & (</> FilePath.normalise file)
-      & Directory.canonicalizePath
-      & liftIO
+      FilePath.normalise dir
+        & (</> FilePath.normalise file)
+        & Directory.canonicalizePath
+        & liftIO
 
 -- | Make a 'FilePath' absolute when it is relative to another
 -- 'FilePath'.
@@ -148,11 +148,11 @@ makeRelativeToDir dir path = do
     Just (rdir, rpath)
       | null rdir -> pure rpath
       | otherwise ->
-        FilePath.splitPath rdir
-          & map (const "..")
-          & FilePath.joinPath
-          & (</> rpath)
-          & pure
+          FilePath.splitPath rdir
+            & map (const "..")
+            & FilePath.joinPath
+            & (</> rpath)
+            & pure
   where
     commonPrefix :: FilePath -> FilePath -> Maybe FilePath
     commonPrefix = go []
@@ -261,12 +261,10 @@ encodePathName file =
 decodePathName :: FilePath -> Maybe FilePath
 decodePathName encoded =
   List.stripPrefix "edify-" encoded
-    <&> ( \file ->
+    >>= ( \file ->
             FilePath.dropExtension file
               & encodeUtf8
               & Base16.decode
               & rightToMaybe
-              <&> decodeUtf8
-              <&> (FilePath.<.> FilePath.takeExtension file)
+              <&> (decodeUtf8 >>> (FilePath.<.> FilePath.takeExtension file))
         )
-      & join

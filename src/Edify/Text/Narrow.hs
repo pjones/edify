@@ -84,20 +84,15 @@ narrowP (Markers mstart mend) (Token token) = do
         _ <- Atto.many1 Atto.space
         _ <- Atto.asciiCI token
         c <- Atto.peekChar'
-        if isSpace c
-          then -- Found the opening marker and token.
-            pure ()
-          else -- Found token with same prefix, backtrack.
-            empty
+        -- Guard: The token we want is a prefix of the current token.
+        -- Fail to parse so we can keep looking for the correct token.
+        unless (isSpace c) empty
       closeP = do
         _ <- Atto.string mend
         c <- Atto.peekChar' <|> pure '\n'
-        if isSpace c
-          then -- Found the closing marker.
-            pure ()
-          else -- Looks like the closing marker, except that the
-          -- character after the marker isn't a space or EOF.
-            empty
+        -- Guard: looks like the closing marker, except that the
+        -- character after the marker isn't a space or EOF.
+        unless (isSpace c) empty
 
   -- Skip over all characters until we hit the starting marker and the
   -- token.

@@ -57,7 +57,7 @@ main = do
 
     isModernEntity :: Text -> Bool
     isModernEntity key =
-      (not $ Text.null key)
+      not (Text.null key)
         && Text.head key == '&'
         && Text.last key == ';'
 

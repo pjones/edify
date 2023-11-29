@@ -128,12 +128,7 @@ wholelineP = do
   chars <- many (Atto.satisfy (not . Atto.isEndOfLine))
   eol <- Atto.peekChar'
   Atto.endOfLine <|> Atto.endOfInput
-  pure
-    ( toText chars
-        <> if eol == '\n'
-          then "\n"
-          else "\r\n"
-    )
+  pure (toText chars <> if eol == '\r' then "\r" else "" <> "\n")
 
 -- | Optional horizontal space followed by an end-of-line sequence.
 --

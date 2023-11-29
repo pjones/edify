@@ -111,11 +111,10 @@ relativeToOutput ::
 relativeToOutput input output path = do
   Runtime {stack} <- get
   let dir =
-        Stack.bottom stack
-          & Input.toFilePath
-          & fmap (FilePath.toOutputPath input output)
-          & fmap FilePath.takeDirectory
-          & fromMaybe output
+        maybe
+          output
+          (FilePath.toOutputPath input output >>> FilePath.takeDirectory)
+          (Stack.bottom stack & Input.toFilePath)
   FilePath.makeRelativeToDir dir path
 
 -- | Read a file and pass its contents to a continuation, keeping
@@ -205,10 +204,9 @@ verifyCommand ::
   (Text -> m a) ->
   -- | Final result.
   m a
-verifyCommand allowDir command onerror onsuccess = do
-  commandStatus allowDir command $ \file status ->
-    case status of
-      Fingerprint.Mismatch ->
-        onerror (Error.CommandBlockedError file command)
-      Fingerprint.Verified ->
-        onsuccess command
+verifyCommand allowDir command onerror onsuccess = commandStatus allowDir command $ \file status ->
+  case status of
+    Fingerprint.Mismatch ->
+      onerror (Error.CommandBlockedError file command)
+    Fingerprint.Verified ->
+      onsuccess command

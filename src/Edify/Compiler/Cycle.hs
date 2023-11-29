@@ -123,9 +123,7 @@ depends src dest = runState $ do
     makeNodeID label = do
       Deps {..} <- get
 
-      Graph.labNodes depsGraph
-        & filter (snd >>> (== label))
-        & listToMaybe
+      find (snd >>> (== label)) (Graph.labNodes depsGraph)
         & fmap fst
         & \case
           Nothing ->
